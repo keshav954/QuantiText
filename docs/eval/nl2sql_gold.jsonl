@@ -1,0 +1,50 @@
+{"id": 1, "question": "What is the total revenue for the last 30 days?", "expected_sql_contains": ["SUM", "total_revenue", "v_kpi_daily"], "expected_answer_contains": ["revenue"], "category": "kpi"}
+{"id": 2, "question": "Which 5 products have the highest revenue?", "expected_sql_contains": ["ORDER BY", "DESC", "LIMIT 5"], "expected_answer_contains": ["product"], "category": "product"}
+{"id": 3, "question": "Show me daily revenue for this month", "expected_sql_contains": ["sale_date", "v_kpi_daily", "DATE_TRUNC"], "expected_answer_contains": ["revenue"], "category": "trend"}
+{"id": 4, "question": "Which products are low on stock?", "expected_sql_contains": ["v_inventory_status", "stock_status"], "expected_answer_contains": ["stock"], "category": "inventory"}
+{"id": 5, "question": "What is the average order value?", "expected_sql_contains": ["avg_order_value"], "expected_answer_contains": ["order", "value"], "category": "kpi"}
+{"id": 6, "question": "How many unique customers do we have?", "expected_sql_contains": ["unique_customers", "v_kpi_daily"], "expected_answer_contains": ["customer"], "category": "kpi"}
+{"id": 7, "question": "What are the top 3 categories by revenue?", "expected_sql_contains": ["category_name", "ORDER BY", "DESC"], "expected_answer_contains": ["category"], "category": "product"}
+{"id": 8, "question": "Show revenue by region", "expected_sql_contains": ["v_sales_by_region", "region"], "expected_answer_contains": ["region"], "category": "regional"}
+{"id": 9, "question": "Which products have the most sales volume?", "expected_sql_contains": ["total_qty", "ORDER BY"], "expected_answer_contains": ["product"], "category": "product"}
+{"id": 10, "question": "What is the total number of orders?", "expected_sql_contains": ["SUM", "order_count"], "expected_answer_contains": ["order"], "category": "kpi"}
+{"id": 11, "question": "Show me products with stock below reorder point", "expected_sql_contains": ["v_inventory_status", "stock_on_hand", "reorder_point"], "expected_answer_contains": ["stock"], "category": "inventory"}
+{"id": 12, "question": "What was our best day for revenue?", "expected_sql_contains": ["ORDER BY", "DESC", "LIMIT 1", "sale_date"], "expected_answer_contains": ["revenue"], "category": "trend"}
+{"id": 13, "question": "Compare revenue between regions", "expected_sql_contains": ["v_sales_by_region", "region", "total_revenue"], "expected_answer_contains": ["region"], "category": "regional"}
+{"id": 14, "question": "Which 10 products are overstocked?", "expected_sql_contains": ["v_inventory_status", "overstock"], "expected_answer_contains": ["overstock"], "category": "inventory"}
+{"id": 15, "question": "Show me revenue trend for the last 7 days", "expected_sql_contains": ["v_kpi_daily", "7 days", "sale_date"], "expected_answer_contains": ["revenue"], "category": "trend"}
+{"id": 16, "question": "What is the revenue breakdown by product category?", "expected_sql_contains": ["category_name", "total_revenue", "v_sales_by_product"], "expected_answer_contains": ["category"], "category": "product"}
+{"id": 17, "question": "How many products do we have in total?", "expected_sql_contains": ["COUNT", "products"], "expected_answer_contains": ["product"], "category": "product"}
+{"id": 18, "question": "What are the forecast predictions for our top product?", "expected_sql_contains": ["forecasts", "predicted_qty"], "expected_answer_contains": ["forecast"], "category": "forecast"}
+{"id": 19, "question": "Are there any anomalies detected recently?", "expected_sql_contains": ["anomalies", "detected_date"], "expected_answer_contains": ["anomal"], "category": "anomaly"}
+{"id": 20, "question": "Show the weekly revenue pattern", "expected_sql_contains": ["v_kpi_daily", "sale_date", "total_revenue"], "expected_answer_contains": ["revenue"], "category": "trend"}
+{"id": 21, "question": "Which product has the highest unit price?", "expected_sql_contains": ["unit_price", "ORDER BY", "DESC"], "expected_answer_contains": ["product", "price"], "category": "product"}
+{"id": 22, "question": "What is the forecast accuracy (MAPE) across models?", "expected_sql_contains": ["mape", "forecasts"], "expected_answer_contains": ["MAPE"], "category": "forecast"}
+{"id": 23, "question": "Show me critical severity anomalies", "expected_sql_contains": ["anomalies", "severity_score"], "expected_answer_contains": ["anomal"], "category": "anomaly"}
+{"id": 24, "question": "How does today's revenue compare to average?", "expected_sql_contains": ["v_kpi_daily", "AVG"], "expected_answer_contains": ["revenue"], "category": "kpi"}
+{"id": 25, "question": "List products with zero stock", "expected_sql_contains": ["v_inventory_status", "stock_on_hand", "0"], "expected_answer_contains": ["stock"], "category": "inventory"}
+{"id": 26, "question": "What is the month-over-month revenue growth?", "expected_sql_contains": ["v_kpi_daily", "total_revenue"], "expected_answer_contains": ["revenue", "growth"], "category": "trend"}
+{"id": 27, "question": "Which region has the most orders?", "expected_sql_contains": ["v_sales_by_region", "order_count", "ORDER BY"], "expected_answer_contains": ["region"], "category": "regional"}
+{"id": 28, "question": "Show inventory value at risk", "expected_sql_contains": ["v_inventory_status", "stock_on_hand"], "expected_answer_contains": ["inventory"], "category": "inventory"}
+{"id": 29, "question": "What products have forecasts expiring soon?", "expected_sql_contains": ["forecasts", "forecast_date"], "expected_answer_contains": ["forecast"], "category": "forecast"}
+{"id": 30, "question": "Revenue per customer on average", "expected_sql_contains": ["total_revenue", "unique_customers"], "expected_answer_contains": ["revenue", "customer"], "category": "kpi"}
+{"id": 31, "question": "Show top 5 products by quantity sold", "expected_sql_contains": ["total_qty", "ORDER BY", "DESC", "LIMIT 5"], "expected_answer_contains": ["product"], "category": "product"}
+{"id": 32, "question": "What anomalies were detected by the isolation forest?", "expected_sql_contains": ["anomalies", "iforest"], "expected_answer_contains": ["anomal"], "category": "anomaly"}
+{"id": 33, "question": "Revenue from the electronics category", "expected_sql_contains": ["category_name", "total_revenue"], "expected_answer_contains": ["revenue"], "category": "product"}
+{"id": 34, "question": "How many low stock alerts do we have?", "expected_sql_contains": ["v_inventory_status", "low"], "expected_answer_contains": ["low", "stock"], "category": "inventory"}
+{"id": 35, "question": "Show daily order count this week", "expected_sql_contains": ["order_count", "v_kpi_daily", "sale_date"], "expected_answer_contains": ["order"], "category": "trend"}
+{"id": 36, "question": "What is the total inventory across all products?", "expected_sql_contains": ["SUM", "stock_on_hand"], "expected_answer_contains": ["inventory", "stock"], "category": "inventory"}
+{"id": 37, "question": "Show revenue spike anomalies from the last month", "expected_sql_contains": ["anomalies", "revenue_spike"], "expected_answer_contains": ["spike"], "category": "anomaly"}
+{"id": 38, "question": "Which products need reordering?", "expected_sql_contains": ["v_inventory_status"], "expected_answer_contains": ["reorder"], "category": "inventory"}
+{"id": 39, "question": "Top region by revenue last 30 days", "expected_sql_contains": ["v_sales_by_region", "total_revenue", "ORDER BY"], "expected_answer_contains": ["region"], "category": "regional"}
+{"id": 40, "question": "Average quantity sold per order", "expected_sql_contains": ["quantity", "AVG"], "expected_answer_contains": ["quantity"], "category": "kpi"}
+{"id": 41, "question": "Show revenue for each day of last week", "expected_sql_contains": ["v_kpi_daily", "sale_date", "total_revenue"], "expected_answer_contains": ["revenue"], "category": "trend"}
+{"id": 42, "question": "Products with forecast MAPE above 20%", "expected_sql_contains": ["forecasts", "mape", "20"], "expected_answer_contains": ["MAPE"], "category": "forecast"}
+{"id": 43, "question": "Dismissed anomalies count", "expected_sql_contains": ["anomalies", "is_dismissed", "TRUE"], "expected_answer_contains": ["dismiss"], "category": "anomaly"}
+{"id": 44, "question": "Revenue contribution of top 10 products as percentage", "expected_sql_contains": ["total_revenue", "v_sales_by_product"], "expected_answer_contains": ["revenue"], "category": "product"}
+{"id": 45, "question": "What is the median order value?", "expected_sql_contains": ["v_kpi_daily", "total_revenue", "order_count"], "expected_answer_contains": ["order"], "category": "kpi"}
+{"id": 46, "question": "Show products with lead time over 14 days", "expected_sql_contains": ["inventory", "lead_time_days", "14"], "expected_answer_contains": ["lead"], "category": "inventory"}
+{"id": 47, "question": "Daily unique customer count trend", "expected_sql_contains": ["v_kpi_daily", "unique_customers", "sale_date"], "expected_answer_contains": ["customer"], "category": "trend"}
+{"id": 48, "question": "What model gives the best forecast?", "expected_sql_contains": ["forecasts", "model_name", "mape", "ORDER BY"], "expected_answer_contains": ["model"], "category": "forecast"}
+{"id": 49, "question": "Show all active anomalies sorted by severity", "expected_sql_contains": ["anomalies", "is_dismissed", "FALSE", "severity_score"], "expected_answer_contains": ["anomal"], "category": "anomaly"}
+{"id": 50, "question": "What was our highest revenue day ever?", "expected_sql_contains": ["v_kpi_daily", "total_revenue", "ORDER BY", "DESC", "LIMIT 1"], "expected_answer_contains": ["revenue"], "category": "trend"}

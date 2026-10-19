@@ -1,0 +1,140 @@
+# Business Glossary — QuantiText
+#
+# Maps business abbreviations and jargon to their full meanings,
+# SQL hints, and synonyms. Used by the Copilot to:
+# 1. Expand abbreviations in user queries (YTD → Year to Date)
+# 2. Generate correct SQL (DAU → COUNT(DISTINCT customer_id))
+# 3. Resolve ambiguous terms ("conversion" → which metric?)
+#
+# To add a new term: follow the format below and restart the backend.
+
+terms:
+  YTD:
+    expansion: "Year to Date (from January 1st to today)"
+    sql_hint: "WHERE sale_date >= DATE_TRUNC('year', CURRENT_DATE)"
+    synonyms: ["year to date", "this year so far"]
+    category: "time_filter"
+
+  MTD:
+    expansion: "Month to Date (from the 1st of the current month to today)"
+    sql_hint: "WHERE sale_date >= DATE_TRUNC('month', CURRENT_DATE)"
+    synonyms: ["month to date", "this month so far"]
+    category: "time_filter"
+
+  QTD:
+    expansion: "Quarter to Date (from the start of the current quarter to today)"
+    sql_hint: "WHERE sale_date >= DATE_TRUNC('quarter', CURRENT_DATE)"
+    synonyms: ["quarter to date"]
+    category: "time_filter"
+
+  WoW:
+    expansion: "Week over Week comparison"
+    sql_hint: "Compare current week's value to previous week's value"
+    synonyms: ["week over week", "weekly change", "w/w"]
+    category: "comparison"
+
+  MoM:
+    expansion: "Month over Month comparison"
+    sql_hint: "Compare current month's value to previous month's value"
+    synonyms: ["month over month", "monthly change", "m/m"]
+    category: "comparison"
+
+  YoY:
+    expansion: "Year over Year comparison"
+    sql_hint: "Compare current year's value to same period last year"
+    synonyms: ["year over year", "yearly change", "y/y"]
+    category: "comparison"
+
+  AOV:
+    expansion: "Average Order Value = total revenue / number of orders"
+    sql_hint: "SUM(total_amount) / COUNT(*) AS avg_order_value"
+    synonyms: ["average order value", "avg order", "order average"]
+    category: "metric"
+
+  DAU:
+    expansion: "Daily Active Users — unique customers placing orders per day"
+    sql_hint: "COUNT(DISTINCT customer_id) per day"
+    synonyms: ["daily active users", "daily customers", "active users"]
+    category: "metric"
+
+  MAU:
+    expansion: "Monthly Active Users — unique customers placing orders per month"
+    sql_hint: "COUNT(DISTINCT customer_id) per month"
+    synonyms: ["monthly active users", "monthly customers"]
+    category: "metric"
+
+  GMV:
+    expansion: "Gross Merchandise Value — total sales value before deductions"
+    sql_hint: "SUM(total_amount) AS gmv"
+    synonyms: ["gross merchandise value", "total sales value", "gross sales"]
+    category: "metric"
+
+  COGS:
+    expansion: "Cost of Goods Sold — total cost of products sold"
+    sql_hint: "SUM(quantity * unit_cost) AS cogs FROM order_items JOIN inventory"
+    synonyms: ["cost of goods sold", "cost of sales", "product cost"]
+    category: "metric"
+
+  GP:
+    expansion: "Gross Profit = Revenue - COGS"
+    sql_hint: "SUM(total_amount) - SUM(quantity * unit_cost) AS gross_profit"
+    synonyms: ["gross profit", "profit margin"]
+    category: "metric"
+
+  SKU:
+    expansion: "Stock Keeping Unit — unique product identifier"
+    sql_hint: "products.sku"
+    synonyms: ["stock keeping unit", "product code", "item code"]
+    category: "entity"
+
+  OOS:
+    expansion: "Out of Stock — stock_on_hand = 0"
+    sql_hint: "WHERE stock_on_hand = 0"
+    synonyms: ["out of stock", "stockout", "no stock"]
+    category: "status"
+
+  ROP:
+    expansion: "Reorder Point — stock level that triggers a new order"
+    sql_hint: "inventory.reorder_point"
+    synonyms: ["reorder point", "reorder level"]
+    category: "metric"
+
+  EOQ:
+    expansion: "Economic Order Quantity — optimal order size to minimize costs"
+    sql_hint: "SQRT(2 * annual_demand * order_cost / holding_cost)"
+    synonyms: ["economic order quantity", "optimal order quantity"]
+    category: "metric"
+
+  MAPE:
+    expansion: "Mean Absolute Percentage Error — forecast accuracy metric"
+    sql_hint: "forecasts.mape"
+    synonyms: ["mean absolute percentage error", "forecast error"]
+    category: "ml_metric"
+
+  DOC:
+    expansion: "Days of Cover — how many days current stock will last based on forecast demand"
+    sql_hint: "stock_on_hand / predicted_daily_demand AS days_of_cover"
+    synonyms: ["days of cover", "stock cover", "cover days", "inventory days"]
+    category: "metric"
+
+# ── Ambiguous terms that need clarification ──────────────
+ambiguous:
+  top:
+    question: "By revenue, quantity sold, or profit margin?"
+    options: ["revenue", "quantity", "profit"]
+
+  best:
+    question: "Best in terms of revenue, sales volume, or growth rate?"
+    options: ["revenue", "volume", "growth"]
+
+  performance:
+    question: "Product performance, regional performance, or sales team performance?"
+    options: ["product", "region", "team"]
+
+  trend:
+    question: "Over what time period? Daily, weekly, or monthly?"
+    options: ["daily", "weekly", "monthly"]
+
+  compare:
+    question: "Compare by what dimension? Products, regions, categories, or time periods?"
+    options: ["products", "regions", "categories", "time_periods"]

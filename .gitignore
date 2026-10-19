@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ML artifacts
+backend/ml/saved_models/*.pkl
+backend/ml/saved_models/*.joblib
+mlruns/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Alembic
+*.pyc
+
+# Generated reports
+*.pdf
+!docs/**/*.pdf
+
+# Uploaded data (BYOD)
+data/uploads/
+data/reports/
