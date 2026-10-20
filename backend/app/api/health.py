@@ -3,7 +3,7 @@ Health-check router — no authentication required.
 Used by Docker healthcheck, load balancers, and the frontend to confirm the backend is alive.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -23,7 +23,7 @@ async def health_check(
     """
     status = {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "version": "0.1.0",
         "services": {},
     }

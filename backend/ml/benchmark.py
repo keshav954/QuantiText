@@ -17,7 +17,6 @@ import sys
 import warnings
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
@@ -109,8 +108,14 @@ def run_benchmark(org_id: str, horizon: int = 7, output: str | None = None) -> p
     df = pd.DataFrame(results)
 
     # ── Summary ────────────────────────────────────────────────────────────────
-    summary_cols = ["naive_mape", "snaive_mape", "lgbm_mape",
-                    "naive_rmse", "snaive_rmse", "lgbm_rmse"]
+    summary_cols = [
+        "naive_mape",
+        "snaive_mape",
+        "lgbm_mape",
+        "naive_rmse",
+        "snaive_rmse",
+        "lgbm_rmse",
+    ]
     summary = df[summary_cols].agg(["mean", "median"]).round(2)
 
     print("\n=== BENCHMARK RESULTS ===")

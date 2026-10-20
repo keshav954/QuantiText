@@ -15,8 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
-from io import BytesIO
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import text
@@ -58,7 +57,7 @@ async def generate_report(
 
     # Step 3: Persist
     report_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     await db.execute(
         text("""
@@ -219,7 +218,9 @@ async def export_report_text(
         lines.append("TOP PRODUCTS BY REVENUE")
         lines.append("-" * 40)
         for i, p in enumerate(agg["top_products"][:10], 1):
-            lines.append(f"  {i}. {p.get('product_name', 'N/A')}: £{p.get('total_revenue', 0):,.2f}")
+            lines.append(
+                f"  {i}. {p.get('product_name', 'N/A')}: £{p.get('total_revenue', 0):,.2f}"
+            )
         lines.append("")
 
     if "inventory_flags" in agg:
@@ -330,7 +331,7 @@ async def decide_recommendation(
     user_id: uuid.UUID,
 ) -> bool:
     """Approve or reject a recommendation. Returns True if updated."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         text("""
             UPDATE recommendations
@@ -458,7 +459,9 @@ async def _aggregate_data(db: AsyncSession, org_id: uuid.UUID) -> dict:
     # Pending recommendations count
     try:
         rec_result = await db.execute(
-            text("SELECT COUNT(*) FROM recommendations WHERE org_id = :org_id AND status = 'pending'"),
+            text(
+                "SELECT COUNT(*) FROM recommendations WHERE org_id = :org_id AND status = 'pending'"
+            ),
             {"org_id": str(org_id)},
         )
         aggregated["pending_recommendations"] = rec_result.scalar_one()

@@ -4,7 +4,7 @@ Uses argon2 for password hashing per security rules.
 Uses python-jose for JWT encode/decode.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
@@ -46,7 +46,7 @@ def create_access_token(
     Payload includes 'sub' (user id), 'org' (org id), 'role', and 'exp'.
     """
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
+    expire = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})

@@ -70,7 +70,7 @@ class SeasonalNaiveModel:
         if len(self._history) < self._season:
             last = float(self._history.iloc[-1]) if len(self._history) > 0 else 0.0
             return np.full(horizon, max(last, 0))
-        tail = self._history.iloc[-self._season:].values.astype(float)
+        tail = self._history.iloc[-self._season :].values.astype(float)
         preds = np.array([max(tail[i % self._season], 0) for i in range(horizon)])
         return preds
 

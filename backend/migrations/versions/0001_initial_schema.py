@@ -5,7 +5,7 @@ Revises: None
 Create Date: 2026-10-15
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -13,9 +13,9 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_initial_schema"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -36,7 +36,12 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("email", sa.String(320), unique=True, nullable=False),
         sa.Column("hashed_password", sa.String(255), nullable=False),
         sa.Column("full_name", sa.String(255), nullable=False),
@@ -52,7 +57,12 @@ def upgrade() -> None:
     op.create_table(
         "categories",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -65,8 +75,18 @@ def upgrade() -> None:
     op.create_table(
         "products",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("category_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("categories.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "category_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("categories.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("sku", sa.String(100), nullable=False),
         sa.Column("name", sa.String(500), nullable=False),
         sa.Column("description", sa.String(2000), nullable=True),
@@ -82,7 +102,12 @@ def upgrade() -> None:
     op.create_table(
         "customers",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("customer_code", sa.String(100), nullable=False),
         sa.Column("country", sa.String(100), nullable=True),
         sa.Column("region", sa.String(100), nullable=True),
@@ -96,8 +121,18 @@ def upgrade() -> None:
     op.create_table(
         "orders",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("customer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("customers.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "customer_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("customers.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("invoice_no", sa.String(50), nullable=False),
         sa.Column("invoice_date", sa.DateTime(timezone=True), nullable=False),
         sa.Column("total_amount", sa.Numeric(14, 2), nullable=False, server_default="0"),
@@ -111,8 +146,18 @@ def upgrade() -> None:
     op.create_table(
         "order_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("order_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orders.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "order_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orders.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("quantity", sa.Integer, nullable=False),
         sa.Column("unit_price", sa.Numeric(12, 2), nullable=False),
         sa.Column("line_total", sa.Numeric(14, 2), nullable=False),
@@ -123,8 +168,19 @@ def upgrade() -> None:
     op.create_table(
         "inventory",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="CASCADE"), nullable=False, unique=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+        ),
         sa.Column("stock_on_hand", sa.Integer, nullable=False, server_default="0"),
         sa.Column("reorder_point", sa.Integer, nullable=False, server_default="0"),
         sa.Column("lead_time_days", sa.Integer, nullable=False, server_default="7"),
@@ -139,8 +195,18 @@ def upgrade() -> None:
     op.create_table(
         "daily_sales",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("sale_date", sa.Date, nullable=False),
         sa.Column("quantity_sold", sa.Integer, nullable=False, server_default="0"),
         sa.Column("revenue", sa.Numeric(14, 2), nullable=False, server_default="0"),
@@ -154,8 +220,18 @@ def upgrade() -> None:
     op.create_table(
         "forecasts",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("forecast_date", sa.Date, nullable=False),
         sa.Column("horizon_days", sa.Integer, nullable=False),
         sa.Column("predicted_qty", sa.Numeric(12, 2), nullable=False),
@@ -173,8 +249,18 @@ def upgrade() -> None:
     op.create_table(
         "anomalies",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("detected_date", sa.Date, nullable=False),
         sa.Column("anomaly_type", sa.String(100), nullable=False),
         sa.Column("detector", sa.String(50), nullable=False),
@@ -191,8 +277,18 @@ def upgrade() -> None:
     op.create_table(
         "alerts",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("anomaly_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("anomalies.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "anomaly_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("anomalies.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("severity", sa.String(20), nullable=False, server_default="info"),
@@ -205,13 +301,28 @@ def upgrade() -> None:
     op.create_table(
         "recommendations",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("products.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("action_type", sa.String(50), nullable=False),
         sa.Column("reason", sa.Text, nullable=False),
         sa.Column("parameters", postgresql.JSONB, nullable=True),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
-        sa.Column("approved_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "approved_by",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("decided_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -221,8 +332,18 @@ def upgrade() -> None:
     op.create_table(
         "reports",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("generated_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "generated_by",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("report_type", sa.String(50), nullable=False, server_default="on_demand"),
         sa.Column("aggregated_data", postgresql.JSONB, nullable=True),
@@ -236,8 +357,18 @@ def upgrade() -> None:
     op.create_table(
         "audit_log",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("org_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("orgs.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "org_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("action", sa.String(100), nullable=False),
         sa.Column("resource", sa.String(100), nullable=False),
         sa.Column("resource_id", sa.String(255), nullable=True),
@@ -338,7 +469,9 @@ def upgrade() -> None:
         $$;
     """)
     op.execute("GRANT USAGE ON SCHEMA public TO bi_readonly;")
-    op.execute("GRANT SELECT ON v_kpi_daily, v_sales_by_product, v_sales_by_region, v_inventory_status TO bi_readonly;")
+    op.execute(
+        "GRANT SELECT ON v_kpi_daily, v_sales_by_product, v_sales_by_region, v_inventory_status TO bi_readonly;"
+    )
 
 
 def downgrade() -> None:

@@ -4,10 +4,7 @@ Tests for inventory service — unit tests using mock DB sessions.
 
 from __future__ import annotations
 
-import pytest
-
-from app.services.inventory_service import _eoq, _safety_stock, _classify_abc, _stock_status
-
+from app.services.inventory_service import _classify_abc, _eoq, _safety_stock, _stock_status
 
 # ── Unit tests for pure calculation functions ───────────────────────────────────
 

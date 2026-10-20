@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.copilot_service import _validate_sql, _inject_org_id, _infer_chart_type
-
+from app.services.copilot_service import _infer_chart_type, _inject_org_id, _validate_sql
 
 # ── SQL validation ──────────────────────────────────────────────────────────────
 

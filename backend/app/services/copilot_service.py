@@ -23,7 +23,6 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,6 +119,7 @@ def _inject_org_id(sql: str, org_id: str) -> str:
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
+
 
 async def chat(
     db: AsyncSession,
@@ -265,10 +265,13 @@ async def get_session_messages(
         {"session_id": str(session_id), "org_id": str(org_id)},
     )
     rows = result.mappings().all()
-    return [{"role": r["role"], "content": r["content"], "timestamp": r["created_at"]} for r in rows]
+    return [
+        {"role": r["role"], "content": r["content"], "timestamp": r["created_at"]} for r in rows
+    ]
 
 
 # ── Private helpers ────────────────────────────────────────────────────────────
+
 
 async def _get_or_create_session(
     db: AsyncSession,
@@ -325,7 +328,12 @@ async def _save_messages(
             INSERT INTO chat_messages (id, session_id, org_id, role, content)
             VALUES (:id, :session_id, :org_id, 'user', :content)
         """),
-        {"id": str(uuid.uuid4()), "session_id": str(session_id), "org_id": org_id, "content": question},
+        {
+            "id": str(uuid.uuid4()),
+            "session_id": str(session_id),
+            "org_id": org_id,
+            "content": question,
+        },
     )
 
     # Save assistant message (compact JSON metadata)
@@ -339,7 +347,12 @@ async def _save_messages(
             INSERT INTO chat_messages (id, session_id, org_id, role, content)
             VALUES (:id, :session_id, :org_id, 'assistant', :content)
         """),
-        {"id": str(uuid.uuid4()), "session_id": str(session_id), "org_id": org_id, "content": assistant_content},
+        {
+            "id": str(uuid.uuid4()),
+            "session_id": str(session_id),
+            "org_id": org_id,
+            "content": assistant_content,
+        },
     )
 
     # Update session title from first question
@@ -387,20 +400,26 @@ def _generate_follow_ups(question: str, result: dict | None) -> list[str]:
     suggestions = []
 
     if "revenue" in q:
-        suggestions.extend([
-            "Which product category drove the most growth?",
-            "How does this compare to the previous period?",
-        ])
+        suggestions.extend(
+            [
+                "Which product category drove the most growth?",
+                "How does this compare to the previous period?",
+            ]
+        )
     elif "stock" in q or "inventory" in q:
-        suggestions.extend([
-            "Which products need immediate reordering?",
-            "What is the total inventory value at risk?",
-        ])
+        suggestions.extend(
+            [
+                "Which products need immediate reordering?",
+                "What is the total inventory value at risk?",
+            ]
+        )
     elif "top" in q or "product" in q:
-        suggestions.extend([
-            "Show me the revenue trend for the top product",
-            "Which region drives the most sales for these products?",
-        ])
+        suggestions.extend(
+            [
+                "Show me the revenue trend for the top product",
+                "Which region drives the most sales for these products?",
+            ]
+        )
 
     if result and result.get("row_count", 0) > 0:
         suggestions.append("Export this data as a report")

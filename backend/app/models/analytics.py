@@ -22,7 +22,10 @@ class DailySales(UUIDPrimaryKeyMixin, Base):
         UUID(as_uuid=True), ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False, index=True
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     sale_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     quantity_sold: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -42,7 +45,10 @@ class Forecast(UUIDPrimaryKeyMixin, Base):
         UUID(as_uuid=True), ForeignKey("orgs.id", ondelete="CASCADE"), nullable=False, index=True
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     forecast_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     horizon_days: Mapped[int] = mapped_column(Integer, nullable=False)

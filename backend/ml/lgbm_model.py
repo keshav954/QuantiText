@@ -104,16 +104,22 @@ class LightGBMForecaster:
         importance = self._model.feature_importances_
         self._feature_importance = dict(
             sorted(
-                zip(FEATURE_COLS, importance.tolist()),
+                zip(FEATURE_COLS, importance.tolist(), strict=False),
                 key=lambda x: x[1],
                 reverse=True,
             )[:5]
         )
-        log.info("LightGBM trained: key=%s top_features=%s", self.model_key, list(self._feature_importance.keys())[:3])
+        log.info(
+            "LightGBM trained: key=%s top_features=%s",
+            self.model_key,
+            list(self._feature_importance.keys())[:3],
+        )
 
     # ── Evaluate ──────────────────────────────────────────────────────────────
 
-    def evaluate(self, series: pd.Series, n_folds: int = 3, horizon: int | None = None) -> dict[str, float]:
+    def evaluate(
+        self, series: pd.Series, n_folds: int = 3, horizon: int | None = None
+    ) -> dict[str, float]:
         """
         Walk-forward cross-validation.
         Returns mean MAPE and RMSE across folds.
@@ -136,7 +142,7 @@ class LightGBMForecaster:
                 break
 
             train_series = series.iloc[:cutoff]
-            test_series = series.iloc[cutoff: cutoff + horizon]
+            test_series = series.iloc[cutoff : cutoff + horizon]
 
             # Temporarily train on fold subset
             tmp = LightGBMForecaster(self.model_key, horizon=horizon)
@@ -241,7 +247,13 @@ class LightGBMForecaster:
             explainer = shap.TreeExplainer(self._model)
             shap_values = explainer.shap_values(X[-1:])
             mean_abs = np.abs(shap_values).mean(axis=0)
-            result = dict(sorted(zip(FEATURE_COLS, mean_abs.tolist()), key=lambda x: x[1], reverse=True)[:5])
+            result = dict(
+                sorted(
+                    zip(FEATURE_COLS, mean_abs.tolist(), strict=False),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )[:5]
+            )
             return result
         except Exception:
             log.warning("SHAP explanation failed for key=%s", self.model_key, exc_info=True)
@@ -258,7 +270,7 @@ class LightGBMForecaster:
         return path
 
     @classmethod
-    def load(cls, model_key: str) -> "LightGBMForecaster | None":
+    def load(cls, model_key: str) -> LightGBMForecaster | None:
         path = _SAVED_MODELS_DIR / f"lgbm_{model_key}.pkl"
         if not path.exists():
             return None

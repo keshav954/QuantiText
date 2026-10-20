@@ -10,9 +10,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.security import create_access_token, hash_password, verify_password
-from app.core.config import settings
 from app.models.user import User
 
 

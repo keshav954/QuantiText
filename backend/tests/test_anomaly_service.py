@@ -5,23 +5,24 @@ Tests for anomaly detection service — unit tests for pure detector functions.
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
-from app.services.anomaly_service import _detect_zscore, _detect_data_quality
+from app.services.anomaly_service import _detect_data_quality, _detect_zscore
 
 
 def _make_df(product_id: str, revenues: list[float], qtys: list[int | None] = None):
     """Build a minimal daily_sales DataFrame."""
-    import uuid
+
     dates = pd.date_range("2024-01-01", periods=len(revenues), freq="D").date
     if qtys is None:
         qtys = [max(0, int(r / 10)) for r in revenues]
-    return pd.DataFrame({
-        "product_id": [product_id] * len(revenues),
-        "sale_date": dates,
-        "revenue": revenues,
-        "quantity_sold": qtys,
-    })
+    return pd.DataFrame(
+        {
+            "product_id": [product_id] * len(revenues),
+            "sale_date": dates,
+            "revenue": revenues,
+            "quantity_sold": qtys,
+        }
+    )
 
 
 def test_zscore_detects_spike():
@@ -107,7 +108,6 @@ def test_data_quality_no_flag_two_zeros():
 
 def test_data_quality_severity_scales():
     """Longer zero streaks should have higher severity."""
-    pid = "prod-008"
     qtys_short = [10, 0, 0, 0, 8]
     qtys_long = [10, 0, 0, 0, 0, 0, 0, 0, 8]
     df_short = _make_df("prod-008a", [float(q * 100) for q in qtys_short], qtys_short)

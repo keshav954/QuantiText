@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,7 +54,9 @@ async def list_forecasts(
 )
 async def get_forecast(
     product_id: uuid.UUID,
-    horizon: int = Query(30, ge=1, le=90, description="Forecast horizon in days (1, 7, or 30 recommended)"),
+    horizon: int = Query(
+        30, ge=1, le=90, description="Forecast horizon in days (1, 7, or 30 recommended)"
+    ),
     force_retrain: bool = Query(False, description="Bypass cache and retrain the model"),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),

@@ -11,10 +11,10 @@ from __future__ import annotations
 import abc
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class TaskType(str, Enum):
+class TaskType(StrEnum):
     """Task categories — used by the 'auto' provider to pick the best backend."""
 
     SQL_GENERATION = "sql_generation"

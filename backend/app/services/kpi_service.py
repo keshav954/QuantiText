@@ -117,11 +117,9 @@ async def get_kpi_summary(
         prev_start = start_date - timedelta(days=period_days)
         prev_end = start_date - timedelta(days=1)
 
-        prev_params = {**query_params, "start_date": prev_start, "end_date": prev_end}
-        prev_where = where_sql.replace(":start_date", ":prev_start").replace(":end_date", ":prev_end")
         # Simpler: just re-query with shifted dates
         prev_result = await db.execute(
-            text(f"""
+            text("""
                 SELECT
                     COALESCE(SUM(total_revenue), 0) AS total_revenue,
                     COALESCE(SUM(order_count), 0) AS total_orders

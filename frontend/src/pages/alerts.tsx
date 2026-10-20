@@ -203,7 +203,7 @@ export function AlertsPage() {
 
   const detectMutation = useMutation({
     mutationFn: () => triggerDetection(30),
-    onSuccess: (_data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['anomalies'] })
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
     },

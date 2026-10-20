@@ -6,7 +6,7 @@ Called from services and middleware for: logins, queries, approvals, exports.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +57,7 @@ async def log_audit(
                 "resource_id": resource_id,
                 "details": json.dumps(details) if details else None,
                 "ip": ip_address,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             },
         )
         await db.commit()

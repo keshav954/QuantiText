@@ -18,9 +18,9 @@ class AnomalyOut(BaseModel):
     sku: str | None = None
     product_name: str | None = None
     detected_date: date
-    anomaly_type: str          # revenue_spike | revenue_drop | zero_sales | inventory_critical
-    detector: str              # zscore | iforest | data_quality
-    severity_score: float      # 0–1
+    anomaly_type: str  # revenue_spike | revenue_drop | zero_sales | inventory_critical
+    detector: str  # zscore | iforest | data_quality
+    severity_score: float  # 0–1
     estimated_impact: float | None = None
     details: dict | None = None
     is_dismissed: bool
@@ -39,7 +39,7 @@ class AlertOut(BaseModel):
     anomaly_id: UUID | None = None
     title: str
     description: str | None = None
-    severity: str   # critical | warning | info
+    severity: str  # critical | warning | info
     is_read: bool
     created_at: datetime
 

@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install dependencies
-        run: pip install ".[dev]"
+        run: pip install ".[dev,ml,llm]"
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check
@@ -70,7 +70,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install dependencies
-        run: pip install ".[dev]"
+        run: pip install ".[dev,ml,llm]"
       - name: Run tests
         run: pytest -q
 

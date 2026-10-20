@@ -15,7 +15,6 @@ computing, so t depends only on t-1, t-2, … .
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 # ── Indian festival approximate dates (fixed or approximate) ─────────────────
@@ -24,11 +23,11 @@ import pandas as pd
 _FESTIVALS: list[tuple[int, int, str]] = [
     (1, 1, "new_year"),
     (1, 26, "republic_day"),
-    (3, 25, "holi"),        # approximate (varies ±2 weeks)
+    (3, 25, "holi"),  # approximate (varies ±2 weeks)
     (8, 15, "independence"),
     (10, 2, "gandhi_jayanti"),
-    (10, 24, "diwali"),     # approximate (varies ±2 weeks)
-    (10, 15, "dussehra"),   # approximate
+    (10, 24, "diwali"),  # approximate (varies ±2 weeks)
+    (10, 15, "dussehra"),  # approximate
     (11, 14, "childrens_day"),
     (12, 25, "christmas"),
     (12, 31, "new_year_eve"),
@@ -41,7 +40,7 @@ def _build_festival_flags(dates: pd.DatetimeIndex) -> pd.DataFrame:
     flags = pd.DataFrame(index=dates)
     flags["is_festival"] = 0
 
-    for month, day, name in _FESTIVALS:
+    for month, day, _name in _FESTIVALS:
         for year in dates.year.unique():
             try:
                 center = pd.Timestamp(year=year, month=month, day=day)
@@ -81,7 +80,7 @@ def build_features(series: pd.Series) -> pd.DataFrame:
         df[f"rolling_std_{window}"] = lagged.rolling(window).std().fillna(0)
 
     # ── Calendar features ─────────────────────────────────────────────────────
-    df["day_of_week"] = df.index.dayofweek          # 0=Monday
+    df["day_of_week"] = df.index.dayofweek  # 0=Monday
     df["month"] = df.index.month
     df["quarter"] = df.index.quarter
     df["is_weekend"] = (df.index.dayofweek >= 5).astype(int)
@@ -102,9 +101,22 @@ def build_features(series: pd.Series) -> pd.DataFrame:
 
 
 FEATURE_COLS: list[str] = [
-    "lag_1", "lag_7", "lag_14", "lag_28",
-    "rolling_mean_7", "rolling_mean_14", "rolling_mean_28",
-    "rolling_std_7", "rolling_std_14", "rolling_std_28",
-    "day_of_week", "month", "quarter", "is_weekend",
-    "day_of_month", "week_of_year", "trend", "is_festival",
+    "lag_1",
+    "lag_7",
+    "lag_14",
+    "lag_28",
+    "rolling_mean_7",
+    "rolling_mean_14",
+    "rolling_mean_28",
+    "rolling_std_7",
+    "rolling_std_14",
+    "rolling_std_28",
+    "day_of_week",
+    "month",
+    "quarter",
+    "is_weekend",
+    "day_of_month",
+    "week_of_year",
+    "trend",
+    "is_festival",
 ]

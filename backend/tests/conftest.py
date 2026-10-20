@@ -8,14 +8,13 @@ Provides:
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
 
 # ── Mock dependencies ────────────────────────────────────────────────────────
 
@@ -75,15 +74,15 @@ def _create_test_app() -> FastAPI:
     register_exception_handlers(test_app)
 
     # Import and mount routers (same as main.py)
-    from app.api.health import router as health_router
-    from app.api.auth import router as auth_router
-    from app.api.kpi import router as kpi_router
-    from app.api.forecast import router as forecast_router
-    from app.api.inventory import router as inventory_router
-    from app.api.anomaly import router as anomaly_router
-    from app.api.copilot import router as copilot_router
-    from app.api.report import router as report_router
     from app.api.admin import router as admin_router
+    from app.api.anomaly import router as anomaly_router
+    from app.api.auth import router as auth_router
+    from app.api.copilot import router as copilot_router
+    from app.api.forecast import router as forecast_router
+    from app.api.health import router as health_router
+    from app.api.inventory import router as inventory_router
+    from app.api.kpi import router as kpi_router
+    from app.api.report import router as report_router
 
     test_app.include_router(health_router)
 

@@ -64,10 +64,12 @@ class OllamaProvider(LLMProvider):
             messages.append({"role": "system", "content": system_prompt})
         if context:
             for msg in context:
-                messages.append({
-                    "role": msg.get("role", "user"),
-                    "content": msg.get("content", ""),
-                })
+                messages.append(
+                    {
+                        "role": msg.get("role", "user"),
+                        "content": msg.get("content", ""),
+                    }
+                )
         messages.append({"role": "user", "content": prompt})
         return messages
 
@@ -140,9 +142,7 @@ class OllamaProvider(LLMProvider):
         if examples:
             few_shot_section = FEW_SHOT_HEADER
             for ex in examples[:5]:
-                few_shot_section += FEW_SHOT_TEMPLATE.format(
-                    question=ex["question"], sql=ex["sql"]
-                )
+                few_shot_section += FEW_SHOT_TEMPLATE.format(question=ex["question"], sql=ex["sql"])
 
         user_prompt = NL2SQL_USER.format(
             schema_context=schema_context,
@@ -181,22 +181,24 @@ class OllamaProvider(LLMProvider):
             },
         }
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=self._timeout) as client,
+            client.stream(
                 "POST",
                 f"{self._base_url}/api/chat",
                 json=payload,
-            ) as resp:
-                resp.raise_for_status()
-                import json
+            ) as resp,
+        ):
+            resp.raise_for_status()
+            import json
 
-                async for line in resp.aiter_lines():
-                    if not line.strip():
-                        continue
-                    try:
-                        data = json.loads(line)
-                        content = data.get("message", {}).get("content", "")
-                        if content:
-                            yield content
-                    except json.JSONDecodeError:
-                        continue
+            async for line in resp.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    content = data.get("message", {}).get("content", "")
+                    if content:
+                        yield content
+                except json.JSONDecodeError:
+                    continue

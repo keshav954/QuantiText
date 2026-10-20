@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -32,6 +32,7 @@ _FORECAST_CACHE_TTL = 3600  # 1 hour
 
 
 # ── Cache helpers ─────────────────────────────────────────────────────────────
+
 
 def _forecast_cache_key(org_id: uuid.UUID, product_id: uuid.UUID, horizon: int) -> str:
     return f"forecast:{org_id}:{product_id}:{horizon}"
@@ -54,6 +55,7 @@ async def _set_cached_forecast(redis: Redis, key: str, data: dict) -> None:
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
+
 
 async def _load_daily_sales(
     db: AsyncSession,
@@ -144,14 +146,18 @@ def _log_mlflow_run(
         mlflow.set_experiment("demand_forecasting")
 
         with mlflow.start_run(run_name=f"{model_name}_{product_id[:8]}"):
-            mlflow.set_tags({
-                "product_id": product_id,
-                "model": model_name,
-            })
-            mlflow.log_params({
-                "horizon_days": horizon,
-                "n_observations": n_obs,
-            })
+            mlflow.set_tags(
+                {
+                    "product_id": product_id,
+                    "model": model_name,
+                }
+            )
+            mlflow.log_params(
+                {
+                    "horizon_days": horizon,
+                    "n_observations": n_obs,
+                }
+            )
             if mape is not None and not np.isnan(mape):
                 mlflow.log_metric("mape", mape)
             if rmse is not None and not np.isnan(rmse):
@@ -164,6 +170,7 @@ def _log_mlflow_run(
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 async def get_forecast(
     db: AsyncSession,
@@ -233,26 +240,34 @@ async def get_forecast(
     forecast_rows = []
     for i in range(horizon):
         fdate = start_date + timedelta(days=i)
-        forecast_rows.append({
-            "forecast_date": fdate,
-            "horizon_days": i + 1,
-            "predicted_qty": float(np.clip(predictions["point"][i], 0, None)),
-            "lower_bound": float(np.clip(predictions["lower"][i], 0, None)),
-            "upper_bound": float(predictions["upper"][i]),
-        })
+        forecast_rows.append(
+            {
+                "forecast_date": fdate,
+                "horizon_days": i + 1,
+                "predicted_qty": float(np.clip(predictions["point"][i], 0, None)),
+                "lower_bound": float(np.clip(predictions["lower"][i], 0, None)),
+                "upper_bound": float(predictions["upper"][i]),
+            }
+        )
 
     # Persist to DB
     await _persist_forecasts(
-        db, org_id, product_id, forecast_rows,
+        db,
+        org_id,
+        product_id,
+        forecast_rows,
         model_name="lightgbm",
         mape=mape,
     )
 
     # Log to MLflow
     _log_mlflow_run(
-        str(product_id), "lightgbm",
-        mape=mape, rmse=rmse,
-        n_obs=len(series), horizon=horizon,
+        str(product_id),
+        "lightgbm",
+        mape=mape,
+        rmse=rmse,
+        n_obs=len(series),
+        horizon=horizon,
         shap_features=shap_features,
     )
 
@@ -298,7 +313,12 @@ async def _load_stored_forecast(
             ORDER BY forecast_date
             LIMIT :limit
         """),
-        {"org_id": str(org_id), "product_id": str(product_id), "horizon": horizon, "limit": horizon},
+        {
+            "org_id": str(org_id),
+            "product_id": str(product_id),
+            "horizon": horizon,
+            "limit": horizon,
+        },
     )
     rows = result.fetchall()
     if not rows or len(rows) < horizon // 2:

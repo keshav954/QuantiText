@@ -2,10 +2,11 @@
 Tests for auth endpoints: login, register, and /me.
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 def _make_fake_user(role="admin"):
@@ -18,8 +19,8 @@ def _make_fake_user(role="admin"):
     user.full_name = "Admin User"
     user.role = role
     user.is_active = True
-    user.created_at = datetime.now(timezone.utc)
-    user.updated_at = datetime.now(timezone.utc)
+    user.created_at = datetime.now(UTC)
+    user.updated_at = datetime.now(UTC)
     return user
 
 
@@ -85,10 +86,14 @@ async def test_me_unauthenticated(async_client):
 @pytest.mark.asyncio
 async def test_register_requires_admin(async_client):
     """Register endpoint should reject non-admin users."""
+    from app.api.deps import get_current_user
+    from tests.conftest import _test_app
+
     # Viewer user trying to register
     fake_viewer = _make_fake_user(role="viewer")
 
-    with patch("app.api.deps.get_current_user", return_value=fake_viewer):
+    _test_app.dependency_overrides[get_current_user] = lambda: fake_viewer
+    try:
         response = await async_client.post(
             "/api/v1/auth/register",
             json={
@@ -101,3 +106,5 @@ async def test_register_requires_admin(async_client):
         )
         # Should be 403 (insufficient role)
         assert response.status_code == 403
+    finally:
+        _test_app.dependency_overrides.pop(get_current_user, None)

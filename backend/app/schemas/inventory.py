@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class InventoryItem(BaseModel):
@@ -29,10 +29,10 @@ class InventoryItem(BaseModel):
     # Computed fields (filled by service)
     avg_daily_demand: float | None = None
     safety_stock: int | None = None
-    eoq: int | None = None            # Economic Order Quantity
+    eoq: int | None = None  # Economic Order Quantity
     days_of_stock: float | None = None
-    abc_class: str | None = None      # A / B / C
-    status: str | None = None         # ok | low | critical | overstock
+    abc_class: str | None = None  # A / B / C
+    status: str | None = None  # ok | low | critical | overstock
     last_updated: datetime | None = None
 
 

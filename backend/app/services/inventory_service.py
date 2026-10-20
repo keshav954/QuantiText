@@ -27,6 +27,7 @@ _ORDERING_COST = 50.0
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def _eoq(annual_demand: float, ordering_cost: float, holding_cost_per_unit: float) -> int:
     """Economic Order Quantity = sqrt(2DS/H)."""
     if holding_cost_per_unit <= 0 or annual_demand <= 0:
@@ -56,18 +57,20 @@ def _classify_abc(items: list[dict]) -> list[dict]:
     sorted_items = sorted(items, key=lambda x: x.get("annual_revenue", 0), reverse=True)
     cumulative = 0.0
     for item in sorted_items:
+        prev_pct = cumulative / total_rev
         cumulative += item.get("annual_revenue", 0)
-        pct = cumulative / total_rev
-        if pct <= 0.70:
+        if prev_pct < 0.70:
             item["abc_class"] = "A"
-        elif pct <= 0.90:
+        elif prev_pct < 0.90:
             item["abc_class"] = "B"
         else:
             item["abc_class"] = "C"
     return items
 
 
-def _stock_status(stock_on_hand: int, reorder_point: int, safety_stock: int, days_of_stock: float) -> str:
+def _stock_status(
+    stock_on_hand: int, reorder_point: int, safety_stock: int, days_of_stock: float
+) -> str:
     """Classify stock status."""
     if stock_on_hand <= 0:
         return "critical"
@@ -81,6 +84,7 @@ def _stock_status(stock_on_hand: int, reorder_point: int, safety_stock: int, day
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
+
 
 async def get_inventory_list(
     db: AsyncSession,
@@ -155,7 +159,7 @@ async def get_inventory_list(
     critical = sum(1 for i in items if i["status"] == "critical")
 
     total = len(items)
-    page_items = items[offset: offset + limit]
+    page_items = items[offset : offset + limit]
 
     return {
         "items": page_items,
@@ -191,26 +195,25 @@ async def get_reorder_suggestions(
     result = await get_inventory_list(db, org_id=org_id, limit=10000)
     items = result["items"]
 
-    needs_reorder = [
-        i for i in items
-        if i["status"] in ("critical", "low") and i["eoq"] > 0
-    ]
+    needs_reorder = [i for i in items if i["status"] in ("critical", "low") and i["eoq"] > 0]
 
     suggestions = []
     for item in needs_reorder:
         eoq = item["eoq"]
         suggested_qty = max(eoq, item["min_order_qty"])
-        suggestions.append({
-            "product_id": item["product_id"],
-            "sku": item["sku"],
-            "product_name": item["product_name"],
-            "current_stock": item["stock_on_hand"],
-            "reorder_point": item["reorder_point"],
-            "eoq": eoq,
-            "suggested_qty": suggested_qty,
-            "estimated_cost": round(suggested_qty * item["unit_cost"], 2),
-            "urgency": "immediate" if item["status"] == "critical" else "soon",
-        })
+        suggestions.append(
+            {
+                "product_id": item["product_id"],
+                "sku": item["sku"],
+                "product_name": item["product_name"],
+                "current_stock": item["stock_on_hand"],
+                "reorder_point": item["reorder_point"],
+                "eoq": eoq,
+                "suggested_qty": suggested_qty,
+                "estimated_cost": round(suggested_qty * item["unit_cost"], 2),
+                "urgency": "immediate" if item["status"] == "critical" else "soon",
+            }
+        )
 
     # Sort by urgency then by current stock ascending
     suggestions.sort(key=lambda x: (0 if x["urgency"] == "immediate" else 1, x["current_stock"]))
@@ -218,6 +221,7 @@ async def get_reorder_suggestions(
 
 
 # ── Private DB helpers ─────────────────────────────────────────────────────────
+
 
 async def _load_inventory_rows(db: AsyncSession, org_id: uuid.UUID) -> list:
     result = await db.execute(

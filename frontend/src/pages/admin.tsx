@@ -263,7 +263,7 @@ function PreviewStep({
         </div>
 
         <div className="space-y-2">
-          {preview.detected_columns.map((col, _i) => {
+          {preview.detected_columns.map((col) => {
             const mapping = mappings.find((m) => m.source_column === col)
             return (
               <div key={col} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-secondary/30">

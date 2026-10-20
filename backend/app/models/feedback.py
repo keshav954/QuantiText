@@ -26,36 +26,46 @@ class CustomerFeedback(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "customer_feedback"
 
     org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("orgs.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("orgs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"),
-        nullable=True, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("customers.id", ondelete="SET NULL"),
+        UUID(as_uuid=True),
+        ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
     )
     source: Mapped[str] = mapped_column(
-        String(50), nullable=False,
+        String(50),
+        nullable=False,
         comment="review | survey | support_ticket",
     )
     rating: Mapped[int | None] = mapped_column(
-        Integer, nullable=True,
+        Integer,
+        nullable=True,
         comment="1-5 star rating, if applicable",
     )
     text_content: Mapped[str] = mapped_column(Text, nullable=False)
     sentiment: Mapped[str | None] = mapped_column(
-        String(20), nullable=True,
+        String(20),
+        nullable=True,
         comment="positive | negative | neutral | mixed",
     )
     sentiment_score: Mapped[float | None] = mapped_column(
-        Float, nullable=True,
+        Float,
+        nullable=True,
         comment="Continuous sentiment score: -1.0 (negative) to 1.0 (positive)",
     )
     themes: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True,
+        JSONB,
+        nullable=True,
         comment='Extracted themes, e.g. ["delivery_delay", "quality_issue"]',
     )
     region: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -65,7 +75,9 @@ class CustomerFeedback(UUIDPrimaryKeyMixin, Base):
     # We don't use a mapped_column here because SQLAlchemy needs the pgvector
     # extension registered. The migration handles the column creation.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
     def __repr__(self) -> str:

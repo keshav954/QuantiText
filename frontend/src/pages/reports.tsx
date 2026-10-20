@@ -192,7 +192,6 @@ function ReportCard({
 
   const handleExport = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const _token = localStorage.getItem('quantitext-token')
     window.open(
       `/api/v1/reports/${report.id}/export`,
       '_blank'
@@ -261,28 +260,38 @@ function ReportCard({
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                     Key Metrics
                   </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <MetricCard
-                      label="Revenue"
-                      value={`£${Number((detail.aggregated_data.kpi_summary as any).total_revenue).toLocaleString()}`}
-                      icon={TrendingUp}
-                    />
-                    <MetricCard
-                      label="Orders"
-                      value={Number((detail.aggregated_data.kpi_summary as any).total_orders).toLocaleString()}
-                      icon={BarChart3}
-                    />
-                    <MetricCard
-                      label="AOV"
-                      value={`£${Number((detail.aggregated_data.kpi_summary as any).avg_order_value).toFixed(2)}`}
-                      icon={FileText}
-                    />
-                    <MetricCard
-                      label="Customers"
-                      value={Number((detail.aggregated_data.kpi_summary as any).unique_customers).toLocaleString()}
-                      icon={Package}
-                    />
-                  </div>
+                  {(() => {
+                    const kpi = detail.aggregated_data.kpi_summary as {
+                      total_revenue?: number
+                      total_orders?: number
+                      avg_order_value?: number
+                      unique_customers?: number
+                    } | undefined
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <MetricCard
+                          label="Revenue"
+                          value={`£${Number(kpi?.total_revenue ?? 0).toLocaleString()}`}
+                          icon={TrendingUp}
+                        />
+                        <MetricCard
+                          label="Orders"
+                          value={Number(kpi?.total_orders ?? 0).toLocaleString()}
+                          icon={BarChart3}
+                        />
+                        <MetricCard
+                          label="AOV"
+                          value={`£${Number(kpi?.avg_order_value ?? 0).toFixed(2)}`}
+                          icon={FileText}
+                        />
+                        <MetricCard
+                          label="Customers"
+                          value={Number(kpi?.unique_customers ?? 0).toLocaleString()}
+                          icon={Package}
+                        />
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </>
@@ -295,7 +304,15 @@ function ReportCard({
   )
 }
 
-function MetricCard({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: React.ComponentType<{ className?: string }>
+}) {
   return (
     <div className="rounded-lg bg-secondary/50 p-3">
       <div className="flex items-center gap-2 mb-1">

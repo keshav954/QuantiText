@@ -127,9 +127,7 @@ class GeminiProvider(LLMProvider):
         if examples:
             few_shot_section = FEW_SHOT_HEADER
             for ex in examples[:5]:  # Cap at 5 examples
-                few_shot_section += FEW_SHOT_TEMPLATE.format(
-                    question=ex["question"], sql=ex["sql"]
-                )
+                few_shot_section += FEW_SHOT_TEMPLATE.format(question=ex["question"], sql=ex["sql"])
 
         user_prompt = NL2SQL_USER.format(
             schema_context=schema_context,

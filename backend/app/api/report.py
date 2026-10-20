@@ -23,11 +23,9 @@ from app.models.user import User
 from app.schemas.report import (
     RecommendationDecision,
     RecommendationListResponse,
-    RecommendationOut,
     ReportDetail,
     ReportGenerateRequest,
     ReportListResponse,
-    ReportOut,
 )
 from app.services import report_service
 
@@ -95,9 +93,7 @@ async def get_report(
     current_user: User = Depends(get_current_user),
 ) -> ReportDetail:
     """Get full report detail including aggregated data."""
-    result = await report_service.get_report(
-        db, org_id=current_user.org_id, report_id=report_id
-    )
+    result = await report_service.get_report(db, org_id=current_user.org_id, report_id=report_id)
     if not result:
         raise HTTPException(status_code=404, detail="Report not found")
     return ReportDetail(**result)

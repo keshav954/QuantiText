@@ -10,7 +10,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db, get_readonly_db  # noqa: F401
 from app.core.redis import get_redis  # noqa: F401
 from app.core.security import decode_access_token

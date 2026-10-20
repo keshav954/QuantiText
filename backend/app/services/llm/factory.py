@@ -73,52 +73,86 @@ class AutoProvider(LLMProvider):
             "or Ollama is running at OLLAMA_BASE_URL."
         )
 
-    async def generate(self, prompt, *, system_prompt=None, context=None,
-                       temperature=0.1, max_tokens=2048,
-                       task_type=TaskType.GENERAL):
+    async def generate(
+        self,
+        prompt,
+        *,
+        system_prompt=None,
+        context=None,
+        temperature=0.1,
+        max_tokens=2048,
+        task_type=TaskType.GENERAL,
+    ):
         provider = self._pick_provider(task_type)
         try:
             return await provider.generate(
-                prompt, system_prompt=system_prompt, context=context,
-                temperature=temperature, max_tokens=max_tokens, task_type=task_type,
+                prompt,
+                system_prompt=system_prompt,
+                context=context,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
             )
         except Exception:
             # Fallback to the other provider
             fallback = self._gemini if provider is self._ollama else self._ollama
             if fallback.is_available:
-                log.warning("Primary %s failed, falling back to %s",
-                            provider.provider_name, fallback.provider_name)
+                log.warning(
+                    "Primary %s failed, falling back to %s",
+                    provider.provider_name,
+                    fallback.provider_name,
+                )
                 return await fallback.generate(
-                    prompt, system_prompt=system_prompt, context=context,
-                    temperature=temperature, max_tokens=max_tokens, task_type=task_type,
+                    prompt,
+                    system_prompt=system_prompt,
+                    context=context,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
                 )
             raise
 
-    async def generate_sql(self, question, *, schema_context,
-                           examples=None, dialect="postgresql"):
+    async def generate_sql(self, question, *, schema_context, examples=None, dialect="postgresql"):
         provider = self._pick_provider(TaskType.SQL_GENERATION)
         try:
             return await provider.generate_sql(
-                question, schema_context=schema_context,
-                examples=examples, dialect=dialect,
+                question,
+                schema_context=schema_context,
+                examples=examples,
+                dialect=dialect,
             )
         except Exception:
             fallback = self._gemini if provider is self._ollama else self._ollama
             if fallback.is_available:
-                log.warning("SQL gen failed on %s, falling back to %s",
-                            provider.provider_name, fallback.provider_name)
+                log.warning(
+                    "SQL gen failed on %s, falling back to %s",
+                    provider.provider_name,
+                    fallback.provider_name,
+                )
                 return await fallback.generate_sql(
-                    question, schema_context=schema_context,
-                    examples=examples, dialect=dialect,
+                    question,
+                    schema_context=schema_context,
+                    examples=examples,
+                    dialect=dialect,
                 )
             raise
 
-    async def stream(self, prompt, *, system_prompt=None, context=None,
-                     temperature=0.3, task_type=TaskType.GENERAL):
+    async def stream(
+        self,
+        prompt,
+        *,
+        system_prompt=None,
+        context=None,
+        temperature=0.3,
+        task_type=TaskType.GENERAL,
+    ):
         provider = self._pick_provider(task_type)
         async for chunk in provider.stream(
-            prompt, system_prompt=system_prompt, context=context,
-            temperature=temperature, task_type=task_type,
+            prompt,
+            system_prompt=system_prompt,
+            context=context,
+            temperature=temperature,
+            task_type=task_type,
         ):
             yield chunk
 
@@ -137,14 +171,19 @@ def get_provider() -> LLMProvider:
 
     if provider_name == "gemini":
         from app.services.llm.gemini_provider import GeminiProvider
+
         provider = GeminiProvider()
         log.info("LLM provider: Gemini (cloud) — model=%s", settings.LLM_MODEL)
 
     elif provider_name == "ollama":
         from app.services.llm.ollama_provider import OllamaProvider
+
         provider = OllamaProvider()
-        log.info("LLM provider: Ollama (local) — sql=%s, text=%s",
-                 settings.OLLAMA_SQL_MODEL, settings.OLLAMA_TEXT_MODEL)
+        log.info(
+            "LLM provider: Ollama (local) — sql=%s, text=%s",
+            settings.OLLAMA_SQL_MODEL,
+            settings.OLLAMA_TEXT_MODEL,
+        )
 
     elif provider_name == "auto":
         provider = AutoProvider()
@@ -152,8 +191,7 @@ def get_provider() -> LLMProvider:
 
     else:
         raise ValueError(
-            f"Unknown LLM_PROVIDER='{provider_name}'. "
-            "Must be one of: gemini, ollama, auto"
+            f"Unknown LLM_PROVIDER='{provider_name}'. Must be one of: gemini, ollama, auto"
         )
 
     return provider

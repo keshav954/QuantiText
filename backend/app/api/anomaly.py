@@ -24,7 +24,6 @@ from app.schemas.anomaly import (
     AnomalyListResponse,
     AnomalyOut,
     DetectionRunResult,
-    DismissRequest,
     MarkReadRequest,
 )
 from app.services import anomaly_service
@@ -33,6 +32,7 @@ router = APIRouter(tags=["anomaly"])
 
 
 # ── Detection ──────────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/anomaly/detect",
@@ -55,6 +55,7 @@ async def trigger_detection(
 
 
 # ── Anomalies ──────────────────────────────────────────────────────────────────
+
 
 @router.get(
     "/anomaly/",
@@ -95,11 +96,13 @@ async def dismiss_anomaly(
     )
     if not found:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anomaly not found")
     return {"status": "dismissed"}
 
 
 # ── Alerts ─────────────────────────────────────────────────────────────────────
+
 
 @router.get(
     "/alerts/",

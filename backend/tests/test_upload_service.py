@@ -3,7 +3,6 @@ Tests for the upload/admin endpoints and upload service helpers.
 """
 
 import pytest
-import uuid
 
 
 @pytest.mark.asyncio
@@ -54,7 +53,16 @@ def test_auto_map_columns():
     """Column auto-detection should map known synonyms correctly."""
     from app.services.upload_service import _auto_map_columns
 
-    source_cols = ["InvoiceNo", "InvoiceDate", "StockCode", "Description", "Quantity", "UnitPrice", "CustomerID", "Country"]
+    source_cols = [
+        "InvoiceNo",
+        "InvoiceDate",
+        "StockCode",
+        "Description",
+        "Quantity",
+        "UnitPrice",
+        "CustomerID",
+        "Country",
+    ]
     mappings = _auto_map_columns(source_cols)
 
     target_cols = {m["target_column"] for m in mappings}

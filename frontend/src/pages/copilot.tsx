@@ -50,7 +50,6 @@ function ResultChart({ result }: { result: QueryResult }) {
   const colCount = result.columns.length
   if (colCount < 2) return null
 
-  const _labelCol = result.columns[0]
   const valueCol = result.columns[1]
 
   const data = result.rows.slice(0, 20).map((row) => ({

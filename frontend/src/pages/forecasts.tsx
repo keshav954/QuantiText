@@ -35,7 +35,6 @@ const SHAP_COLORS = [
 export function ForecastsPage() {
   const [selectedProduct, setSelectedProduct] = useState<ForecastSummary | null>(null)
   const [horizon, setHorizon] = useState(30)
-  const [_showProducts, _setShowProducts] = useState(false)
 
   // List of products with forecasts
   const listQuery = useQuery({

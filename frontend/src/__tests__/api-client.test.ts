@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { getToken, logout } from '@/api/auth'
 
 // Mock localStorage
 const storage: Record<string, string> = {}
@@ -23,19 +24,17 @@ describe('API Client', () => {
   })
 
   it('getToken returns null when no token is stored', () => {
-    const { getToken } = require('@/api/auth') as typeof import('@/api/auth')
     expect(getToken()).toBeNull()
   })
 
   it('getToken returns the stored token', () => {
     storage['quantitext-token'] = 'test-jwt-token'
-    const { getToken } = require('@/api/auth') as typeof import('@/api/auth')
     expect(getToken()).toBe('test-jwt-token')
   })
 
   it('logout removes the token and redirects', () => {
     storage['quantitext-token'] = 'test-jwt-token'
-    
+
     // Mock window.location
     const originalLocation = window.location
     Object.defineProperty(window, 'location', {
@@ -43,7 +42,6 @@ describe('API Client', () => {
       value: { href: '' },
     })
 
-    const { logout } = require('@/api/auth') as typeof import('@/api/auth')
     logout()
 
     expect(localStorageMock.removeItem).toHaveBeenCalledWith('quantitext-token')

@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def retrain_all_products() -> dict[str, int]:
     from app.services.forecasting_service import get_forecast
 
     stats = {"trained": 0, "skipped": 0, "errors": 0}
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
 
     log.info("Forecast retrain job starting at %s", start.isoformat())
 
@@ -74,10 +74,13 @@ async def retrain_all_products() -> dict[str, int]:
             stats["errors"] += 1
             log.exception("Retrain failed for product=%s", product_id_str[:8])
 
-    elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+    elapsed = (datetime.now(UTC) - start).total_seconds()
     log.info(
         "Retrain job complete in %.1fs — trained=%d skipped=%d errors=%d",
-        elapsed, stats["trained"], stats["skipped"], stats["errors"],
+        elapsed,
+        stats["trained"],
+        stats["skipped"],
+        stats["errors"],
     )
     return stats
 

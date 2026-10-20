@@ -2,9 +2,9 @@
 Tests for the report service — report generation and recommendation approval.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
+
+import pytest
 
 
 @pytest.mark.asyncio

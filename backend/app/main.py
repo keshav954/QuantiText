@@ -5,8 +5,8 @@ Creates the app, registers routers, middleware, and lifespan events.
 This is the single entry point — uvicorn loads `app.main:app`.
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,9 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Verify database connectivity
     async with engine.begin() as conn:
-        await conn.execute(
-            __import__("sqlalchemy").text("SELECT 1")
-        )
+        await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
 
     # Verify Redis connectivity
     await redis_pool.ping()
@@ -68,15 +66,15 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     # ── Routers ──────────────────────────────────────────
-    from app.api.health import router as health_router
-    from app.api.auth import router as auth_router
-    from app.api.kpi import router as kpi_router
-    from app.api.forecast import router as forecast_router
-    from app.api.inventory import router as inventory_router
-    from app.api.anomaly import router as anomaly_router
-    from app.api.copilot import router as copilot_router
-    from app.api.report import router as report_router
     from app.api.admin import router as admin_router
+    from app.api.anomaly import router as anomaly_router
+    from app.api.auth import router as auth_router
+    from app.api.copilot import router as copilot_router
+    from app.api.forecast import router as forecast_router
+    from app.api.health import router as health_router
+    from app.api.inventory import router as inventory_router
+    from app.api.kpi import router as kpi_router
+    from app.api.report import router as report_router
 
     # Health is mounted at root (no prefix) for load balancer compatibility
     app.include_router(health_router)

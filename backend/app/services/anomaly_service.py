@@ -19,7 +19,6 @@ import logging
 import uuid
 from datetime import date, timedelta
 
-import numpy as np
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +32,7 @@ _ALERT_SEVERITY_THRESHOLD = 0.5
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
+
 
 async def run_detection(
     db: AsyncSession,
@@ -51,7 +51,11 @@ async def run_detection(
     sales_df = await _load_sales_df(db, org_id, start_date, end_date)
 
     if sales_df.empty:
-        return {"new_anomalies": 0, "new_alerts": 0, "period_checked": f"{start_date} to {end_date}"}
+        return {
+            "new_anomalies": 0,
+            "new_alerts": 0,
+            "period_checked": f"{start_date} to {end_date}",
+        }
 
     # Existing anomaly keys to avoid duplicates
     existing = await _load_existing_anomaly_keys(db, org_id, start_date, end_date)
@@ -222,6 +226,7 @@ async def mark_alerts_read(
 
 # ── Detectors ──────────────────────────────────────────────────────────────────
 
+
 def _detect_zscore(df: pd.DataFrame, existing: set) -> list[dict]:
     """Z-score detector: flags days where revenue z-score > threshold per product."""
     anomalies = []
@@ -244,16 +249,18 @@ def _detect_zscore(df: pd.DataFrame, existing: set) -> list[dict]:
             severity = min(1.0, (abs(z_val) - _ZSCORE_THRESHOLD) / 3.0)
             anomaly_type = "revenue_spike" if z_val > 0 else "revenue_drop"
             impact = abs(float(row["revenue"]) - mu)
-            anomalies.append({
-                "product_id": product_id,
-                "detected_date": row["sale_date"],
-                "anomaly_type": anomaly_type,
-                "detector": "zscore",
-                "severity_score": round(severity, 3),
-                "estimated_impact": round(impact, 2),
-                "details": {"z_score": round(z_val, 3), "mean_revenue": round(mu, 2)},
-                "_key": key,
-            })
+            anomalies.append(
+                {
+                    "product_id": product_id,
+                    "detected_date": row["sale_date"],
+                    "anomaly_type": anomaly_type,
+                    "detector": "zscore",
+                    "severity_score": round(severity, 3),
+                    "estimated_impact": round(impact, 2),
+                    "details": {"z_score": round(z_val, 3), "mean_revenue": round(mu, 2)},
+                    "_key": key,
+                }
+            )
     return anomalies
 
 
@@ -272,16 +279,21 @@ def _detect_data_quality(df: pd.DataFrame, existing: set) -> list[dict]:
                 if consecutive_zeros >= 3:
                     key = (str(product_id), str(row["sale_date"]), "data_quality")
                     if key not in existing:
-                        anomalies.append({
-                            "product_id": product_id,
-                            "detected_date": row["sale_date"],
-                            "anomaly_type": "zero_sales",
-                            "detector": "data_quality",
-                            "severity_score": min(1.0, consecutive_zeros / 10.0),
-                            "estimated_impact": None,
-                            "details": {"consecutive_zero_days": consecutive_zeros, "start": str(zero_start)},
-                            "_key": key,
-                        })
+                        anomalies.append(
+                            {
+                                "product_id": product_id,
+                                "detected_date": row["sale_date"],
+                                "anomaly_type": "zero_sales",
+                                "detector": "data_quality",
+                                "severity_score": min(1.0, consecutive_zeros / 10.0),
+                                "estimated_impact": None,
+                                "details": {
+                                    "consecutive_zero_days": consecutive_zeros,
+                                    "start": str(zero_start),
+                                },
+                                "_key": key,
+                            }
+                        )
             else:
                 consecutive_zeros = 0
                 zero_start = None
@@ -309,20 +321,25 @@ def _detect_iforest(df: pd.DataFrame, existing: set) -> list[dict]:
                 continue
             # Convert decision function score to severity (lower score = more anomalous)
             severity = min(1.0, max(0.0, -scores[i] + 0.1))
-            anomalies.append({
-                "product_id": product_id,
-                "detected_date": row["sale_date"],
-                "anomaly_type": "revenue_spike" if float(row["revenue"]) > grp["revenue"].mean() else "revenue_drop",
-                "detector": "iforest",
-                "severity_score": round(severity, 3),
-                "estimated_impact": None,
-                "details": {"isolation_score": round(float(scores[i]), 4)},
-                "_key": key,
-            })
+            anomalies.append(
+                {
+                    "product_id": product_id,
+                    "detected_date": row["sale_date"],
+                    "anomaly_type": "revenue_spike"
+                    if float(row["revenue"]) > grp["revenue"].mean()
+                    else "revenue_drop",
+                    "detector": "iforest",
+                    "severity_score": round(severity, 3),
+                    "estimated_impact": None,
+                    "details": {"isolation_score": round(float(scores[i]), 4)},
+                    "_key": key,
+                }
+            )
     return anomalies
 
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
+
 
 async def _load_sales_df(
     db: AsyncSession,
@@ -408,8 +425,7 @@ async def _create_alert(
     }
     title = type_labels.get(a["anomaly_type"], "Anomaly detected")
     desc = (
-        f"Detected by {a['detector']} on {a['detected_date']}. "
-        f"Severity: {a['severity_score']:.0%}."
+        f"Detected by {a['detector']} on {a['detected_date']}. Severity: {a['severity_score']:.0%}."
     )
     try:
         await db.execute(

@@ -13,11 +13,9 @@ Data loaded via this service is clearly labelled as user-uploaded.
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -43,8 +41,14 @@ _COLUMN_SYNONYMS: dict[str, list[str]] = {
 
 # Target columns we need
 _TARGET_COLUMNS = [
-    "invoice_no", "invoice_date", "sku", "product_name",
-    "quantity", "unit_price", "customer_id", "country",
+    "invoice_no",
+    "invoice_date",
+    "sku",
+    "product_name",
+    "quantity",
+    "unit_price",
+    "customer_id",
+    "country",
 ]
 
 
@@ -212,7 +216,9 @@ async def load_upload(
                 {"org_id": org_str},
             )
             await db.execute(
-                text("DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE org_id = :org_id)"),
+                text(
+                    "DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE org_id = :org_id)"
+                ),
                 {"org_id": org_str},
             )
             await db.execute(
@@ -240,7 +246,11 @@ async def load_upload(
                     continue
 
                 name = str(row.get("product_name", sku))[:200]
-                price = float(df[df["sku"] == sku]["unit_price"].median()) if "unit_price" in df.columns else 0
+                price = (
+                    float(df[df["sku"] == sku]["unit_price"].median())
+                    if "unit_price" in df.columns
+                    else 0
+                )
 
                 await db.execute(
                     text("""
@@ -260,8 +270,16 @@ async def load_upload(
         # Create orders and order items
         if "invoice_no" in df.columns:
             for invoice_no, group in df.groupby("invoice_no"):
-                inv_date = group["invoice_date"].iloc[0] if "invoice_date" in group.columns else datetime.now()
-                total = float((group["quantity"] * group["unit_price"]).sum()) if "unit_price" in group.columns else 0
+                inv_date = (
+                    group["invoice_date"].iloc[0]
+                    if "invoice_date" in group.columns
+                    else datetime.now()
+                )
+                total = (
+                    float((group["quantity"] * group["unit_price"]).sum())
+                    if "unit_price" in group.columns
+                    else 0
+                )
 
                 order_id = uuid.uuid4()
                 await db.execute(
@@ -285,10 +303,14 @@ async def load_upload(
             df["sale_date"] = df["invoice_date"].dt.date
             df["revenue"] = df["quantity"] * df["unit_price"] if "unit_price" in df.columns else 0
 
-            daily = df.groupby(["sale_date", "sku"]).agg(
-                quantity_sold=("quantity", "sum"),
-                revenue=("revenue", "sum"),
-            ).reset_index()
+            daily = (
+                df.groupby(["sale_date", "sku"])
+                .agg(
+                    quantity_sold=("quantity", "sum"),
+                    revenue=("revenue", "sum"),
+                )
+                .reset_index()
+            )
 
             for _, row in daily.iterrows():
                 # Get product_id
@@ -370,11 +392,13 @@ def _auto_map_columns(source_columns: list[str]) -> list[dict]:
                 break
 
         if best_target and best_target not in used_targets:
-            mappings.append({
-                "source_column": src,
-                "target_column": best_target,
-                "transform": None,
-            })
+            mappings.append(
+                {
+                    "source_column": src,
+                    "target_column": best_target,
+                    "transform": None,
+                }
+            )
             used_targets.add(best_target)
 
     return mappings

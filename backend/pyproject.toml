@@ -84,7 +84,14 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults (FastAPI Depends/Query pattern)
+    "N806",  # variable in function should be lowercase (allow matrix X in ML algorithms)
+    "N818",  # exception name should end in Error (allow AppException)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"ml/benchmark.py" = ["T201"]
+"app/jobs/retrain.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
