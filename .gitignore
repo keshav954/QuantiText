@@ -60,3 +60,10 @@ htmlcov/
 # Uploaded data (BYOD)
 data/uploads/
 data/reports/
+
+# Local logs
+*.txt.log
+be.txt
+fe.txt
+build_*.txt
+up_log.txt
