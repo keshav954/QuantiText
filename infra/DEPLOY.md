@@ -114,9 +114,8 @@ echo "Backup completed: db_${TIMESTAMP}.sql.gz"
 ```
 
 ```bash
-# Add to crontab
-crontab -e
-# Add: 0 2 * * * /opt/quantitext/infra/backup.sh >> /var/log/backup.log 2>&1
+# Install automated production crontab (backup, retrain, weekly reports)
+crontab /opt/quantitext/infra/crontab
 ```
 
 ## Monitoring

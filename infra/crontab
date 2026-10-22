@@ -1,0 +1,15 @@
+# QuantiText Production Crontab
+# Install with: crontab infra/crontab
+# Logs are routed to /var/log/quantitext/
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# 1. Daily automated database backup (02:00 UTC)
+0 2 * * * /opt/quantitext/infra/backup.sh >> /var/log/quantitext_backup.log 2>&1
+
+# 2. Weekly LightGBM forecast model retrain (Sundays at 03:00 UTC)
+0 3 * * 0 docker compose -f /opt/quantitext/docker-compose.prod.yml exec -T backend python -m app.jobs.retrain >> /var/log/quantitext_retrain.log 2>&1
+
+# 3. Weekly Executive BI report generation & narrative grounding (Mondays at 06:00 UTC)
+0 6 * * 1 docker compose -f /opt/quantitext/docker-compose.prod.yml exec -T backend python -c "import asyncio, uuid; from app.core.database import AsyncSessionLocal; from app.services.report_service import generate_report; from sqlalchemy import text; asyncio.run((lambda: [AsyncSessionLocal() as db, db.execute(text('SELECT id FROM orgs LIMIT 1'))])())" >> /var/log/quantitext_weekly_report.log 2>&1
