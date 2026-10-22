@@ -1,6 +1,6 @@
 # Anomaly Detection Evaluation Results
 
-> Generated: 2026-10-17 15:20
+> Generated: 2026-10-22 21:21
 > Synthetic dataset: 10 products × 90 days
 > Ground truth anomalies: 48
 

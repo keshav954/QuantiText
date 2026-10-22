@@ -31,6 +31,8 @@ class OllamaProvider(LLMProvider):
         self._sql_model = settings.OLLAMA_SQL_MODEL
         self._text_model = settings.OLLAMA_TEXT_MODEL
         self._timeout = 120.0  # Local models can be slow on first load
+        self._cached_available: bool = False
+        self._last_available_check: float = 0.0
 
     @property
     def provider_name(self) -> str:
@@ -38,13 +40,42 @@ class OllamaProvider(LLMProvider):
 
     @property
     def is_available(self) -> bool:
-        """Check if Ollama server is reachable (non-blocking best-effort check)."""
+        """Check if Ollama server is reachable (fast non-blocking DNS + 60s cache)."""
+        import concurrent.futures
+        import socket
+        import time
+        import urllib.parse
+
+        now = time.time()
+        ttl = 10.0 if self._cached_available else 60.0
+        if now - self._last_available_check < ttl:
+            return self._cached_available
+
+        self._last_available_check = now
         try:
-            with httpx.Client(timeout=2.0) as client:
+            parsed = urllib.parse.urlparse(self._base_url)
+            host = parsed.hostname or "localhost"
+
+            ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            try:
+                fut = ex.submit(socket.gethostbyname, host)
+                ip = fut.result(timeout=0.2)
+            except Exception:
+                ip = None
+            finally:
+                ex.shutdown(wait=False)
+
+            if not ip:
+                self._cached_available = False
+                return False
+
+            with httpx.Client(timeout=0.5) as client:
                 resp = client.get(f"{self._base_url}/api/tags")
-                return resp.status_code == 200
+                self._cached_available = resp.status_code == 200
         except Exception:
-            return False
+            self._cached_available = False
+
+        return self._cached_available
 
     def _pick_model(self, task_type: TaskType) -> str:
         """Select the best local model for the task."""

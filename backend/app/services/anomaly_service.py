@@ -99,12 +99,14 @@ async def get_anomalies(
     offset: int = 0,
 ) -> dict:
     """Return paginated anomaly list."""
-    where = "org_id = :org_id"
+    where_count = "org_id = :org_id"
+    where_query = "a.org_id = :org_id"
     if only_active:
-        where += " AND is_dismissed = FALSE"
+        where_count += " AND is_dismissed = FALSE"
+        where_query += " AND a.is_dismissed = FALSE"
 
     count_result = await db.execute(
-        text(f"SELECT COUNT(*) FROM anomalies WHERE {where}"),
+        text(f"SELECT COUNT(*) FROM anomalies WHERE {where_count}"),
         {"org_id": str(org_id)},
     )
     total = count_result.scalar_one()
@@ -118,7 +120,7 @@ async def get_anomalies(
                 a.is_dismissed, a.created_at
             FROM anomalies a
             LEFT JOIN products p ON p.id = a.product_id
-            WHERE {where}
+            WHERE {where_query}
             ORDER BY a.severity_score DESC, a.created_at DESC
             LIMIT :limit OFFSET :offset
         """),

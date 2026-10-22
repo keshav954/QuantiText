@@ -270,7 +270,7 @@ export function CopilotPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
             <Bot className="h-6 w-6 text-primary" />
-            AI Copilot
+            AI Chatbot
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Ask questions in plain English · NL2SQL · Read-only · No PII sent to LLM

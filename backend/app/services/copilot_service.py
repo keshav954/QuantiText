@@ -39,9 +39,9 @@ Available views (use ONLY these — customer PII excluded):
 
 v_kpi_daily(org_id, sale_date, total_revenue, order_count, avg_order_value, unique_customers)
 v_sales_by_product(org_id, product_id, sku, product_name, category_name, total_revenue, total_qty)
-v_sales_by_region(org_id, sale_date, region, total_revenue, order_count)
+v_sales_by_region(org_id, sale_date, region, total_revenue, total_qty)
 v_inventory_status(org_id, product_id, sku, product_name, category_name, stock_on_hand,
-                   reorder_point, stock_status)
+                   reorder_point, lead_time_days, status_label)
 
 Supporting tables (read-only):
 daily_sales(org_id, product_id, sale_date, quantity_sold, revenue, region)
@@ -78,7 +78,7 @@ _FEW_SHOTS = [
     },
     {
         "question": "Which products are low on stock?",
-        "sql": "SELECT sku, product_name, stock_on_hand, reorder_point, stock_status FROM v_inventory_status WHERE org_id = '<org_id>' AND stock_status IN ('low', 'critical') ORDER BY stock_on_hand LIMIT 50;",
+        "sql": "SELECT sku, product_name, stock_on_hand, reorder_point, status_label FROM v_inventory_status WHERE org_id = '<org_id>' AND status_label IN ('low_stock', 'out_of_stock') ORDER BY stock_on_hand LIMIT 50;",
     },
 ]
 
@@ -174,7 +174,7 @@ async def chat(
             "columns": columns,
             "rows": rows,
             "row_count": len(rows),
-            "chart_type": _infer_chart_type(question, columns),
+            "chart_type": _infer_chart_type(question, columns, len(rows)),
         }
 
         # 5. Generate narrative answer
@@ -378,8 +378,11 @@ def _format_result_for_llm(columns: list[str], rows: list[list]) -> str:
     return f"{header}\n{separator}\n{data_rows}"
 
 
-def _infer_chart_type(question: str, columns: list[str]) -> str | None:
-    """Heuristic: infer chart type from question and column names."""
+def _infer_chart_type(question: str, columns: list[str], row_count: int = 2) -> str | None:
+    """Heuristic: infer chart type from question, columns, and row count."""
+    if row_count <= 1:
+        return "table"
+
     q = question.lower()
     col_str = " ".join(columns).lower()
 

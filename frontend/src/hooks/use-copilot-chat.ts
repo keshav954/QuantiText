@@ -41,11 +41,14 @@ export function useCopilotChat() {
       }
       setMessages((prev) => [...prev, assistantMsg])
     },
-    onError: () => {
+    onError: (err: unknown) => {
       const errMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: 'Something went wrong. Please try again.',
+        content:
+          err instanceof Error && err.message
+            ? `Query issue: ${err.message}`
+            : 'Something went wrong. Please try again.',
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, errMsg])

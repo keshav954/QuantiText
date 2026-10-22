@@ -22,6 +22,8 @@ const presets = [
   { label: 'Last 30 days', days: 30 },
   { label: 'Last 90 days', days: 90 },
   { label: 'Last 365 days', days: 365 },
+  { label: 'Last 3 years', days: 1095 },
+  { label: 'Last 5 years', days: 1825 },
 ]
 
 export function TopBar() {
@@ -132,13 +134,13 @@ export function TopBar() {
               </div>
               <div>
                 <h1 className="text-sm font-bold text-gradient">QuantiText</h1>
-                <p className="text-[10px] text-muted-foreground">Copilot</p>
+                <p className="text-[10px] text-muted-foreground">Chatbot</p>
               </div>
             </div>
             <nav className="p-3 space-y-1">
               {[
                 { to: '/dashboard', label: 'Dashboard' },
-                { to: '/copilot', label: 'AI Copilot' },
+                { to: '/copilot', label: 'AI Chatbot' },
                 { to: '/forecasts', label: 'Forecasts' },
                 { to: '/inventory', label: 'Inventory' },
                 { to: '/alerts', label: 'Alerts' },

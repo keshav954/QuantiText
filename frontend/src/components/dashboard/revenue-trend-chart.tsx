@@ -71,6 +71,9 @@ export function RevenueTrendChart() {
             dataKey="date"
             tickFormatter={(d: string) => {
               const date = new Date(d)
+              if (chartData.length > 365) {
+                return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+              }
               return `${date.getMonth() + 1}/${date.getDate()}`
             }}
             tick={{ fontSize: 11, fill: 'hsl(217.9, 10.6%, 64.9%)' }}

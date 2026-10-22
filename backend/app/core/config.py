@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # ── Auth / JWT ───────────────────────────────────────
     SECRET_KEY: str = "change-this-to-a-random-64-char-string"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     ALGORITHM: str = "HS256"
 
     # ── LLM Provider ─────────────────────────────────────

@@ -1,6 +1,6 @@
 # NL2SQL Evaluation Results
 
-> Generated: 2026-10-17 15:19
+> Generated: 2026-10-22 21:22
 > Gold set size: **50** questions
 
 ## Gold Set Coverage

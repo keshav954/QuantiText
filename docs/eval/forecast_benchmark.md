@@ -1,6 +1,6 @@
 # Forecast Benchmark Results
 
-> Generated: 2026-10-17 18:25
+> Generated: 2026-10-22 21:22
 > Horizon: **7 days** | Products: **15** | Validation: walk-forward
 > ⚠️ Data is **SYNTHETIC**
 

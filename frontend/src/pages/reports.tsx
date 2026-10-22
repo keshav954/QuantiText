@@ -190,12 +190,27 @@ function ReportCard({
 }) {
   const { data: detail, isLoading } = useReport(isExpanded ? report.id : null)
 
-  const handleExport = (e: React.MouseEvent) => {
+  const handleExport = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    window.open(
-      `/api/v1/reports/${report.id}/export`,
-      '_blank'
-    )
+    try {
+      const token = localStorage.getItem('quantitext-token')
+      const res = await fetch(`/api/v1/reports/${report.id}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Failed to export report')
+      const text = await res.text()
+      const blob = new Blob([text], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `report_${report.id.slice(0, 8)}.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Report export failed:', err)
+    }
   }
 
   return (

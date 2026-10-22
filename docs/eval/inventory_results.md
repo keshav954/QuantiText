@@ -1,6 +1,6 @@
 # Inventory Policy Simulation Results
 
-> Generated: 2026-10-17 15:20
+> Generated: 2026-10-22 21:22
 > Simulation: 20 products × 90 days
 > Data is **SYNTHETIC**
 

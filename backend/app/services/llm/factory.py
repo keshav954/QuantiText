@@ -34,11 +34,13 @@ class AutoProvider(LLMProvider):
     """
 
     def __init__(self) -> None:
+        from app.services.llm.fallback_provider import OfflineFallbackProvider
         from app.services.llm.gemini_provider import GeminiProvider
         from app.services.llm.ollama_provider import OllamaProvider
 
         self._ollama = OllamaProvider()
         self._gemini = GeminiProvider()
+        self._fallback = OfflineFallbackProvider()
 
     @property
     def provider_name(self) -> str:
@@ -46,7 +48,7 @@ class AutoProvider(LLMProvider):
 
     @property
     def is_available(self) -> bool:
-        return self._ollama.is_available or self._gemini.is_available
+        return True
 
     # Tasks that PREFER Gemini due to complexity
     _PREFER_GEMINI: set[TaskType] = {TaskType.RECOMMENDATION}
@@ -68,10 +70,10 @@ class AutoProvider(LLMProvider):
                 log.debug("Auto: Ollama unavailable, routing %s to Gemini", task_type)
                 return self._gemini
 
-        raise RuntimeError(
-            "No LLM provider available. Ensure either GEMINI_API_KEY is set "
-            "or Ollama is running at OLLAMA_BASE_URL."
+        log.debug(
+            "Auto: Ollama/Gemini unconfigured, routing %s to OfflineFallbackProvider", task_type
         )
+        return self._fallback
 
     async def generate(
         self,
@@ -93,24 +95,37 @@ class AutoProvider(LLMProvider):
                 max_tokens=max_tokens,
                 task_type=task_type,
             )
-        except Exception:
-            # Fallback to the other provider
+        except Exception as e:
+            # Fallback to alternative provider or offline provider
             fallback = self._gemini if provider is self._ollama else self._ollama
-            if fallback.is_available:
+            if fallback.is_available and fallback is not provider:
                 log.warning(
-                    "Primary %s failed, falling back to %s",
+                    "Primary %s failed (%s), falling back to %s",
                     provider.provider_name,
+                    e,
                     fallback.provider_name,
                 )
-                return await fallback.generate(
-                    prompt,
-                    system_prompt=system_prompt,
-                    context=context,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    task_type=task_type,
-                )
-            raise
+                try:
+                    return await fallback.generate(
+                        prompt,
+                        system_prompt=system_prompt,
+                        context=context,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        task_type=task_type,
+                    )
+                except Exception:
+                    pass
+
+            log.info("Falling back to OfflineFallbackProvider for generation")
+            return await self._fallback.generate(
+                prompt,
+                system_prompt=system_prompt,
+                context=context,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+            )
 
     async def generate_sql(self, question, *, schema_context, examples=None, dialect="postgresql"):
         provider = self._pick_provider(TaskType.SQL_GENERATION)
@@ -121,21 +136,32 @@ class AutoProvider(LLMProvider):
                 examples=examples,
                 dialect=dialect,
             )
-        except Exception:
+        except Exception as e:
             fallback = self._gemini if provider is self._ollama else self._ollama
-            if fallback.is_available:
+            if fallback.is_available and fallback is not provider:
                 log.warning(
-                    "SQL gen failed on %s, falling back to %s",
+                    "SQL gen failed on %s (%s), falling back to %s",
                     provider.provider_name,
+                    e,
                     fallback.provider_name,
                 )
-                return await fallback.generate_sql(
-                    question,
-                    schema_context=schema_context,
-                    examples=examples,
-                    dialect=dialect,
-                )
-            raise
+                try:
+                    return await fallback.generate_sql(
+                        question,
+                        schema_context=schema_context,
+                        examples=examples,
+                        dialect=dialect,
+                    )
+                except Exception:
+                    pass
+
+            log.info("Falling back to OfflineFallbackProvider for SQL generation")
+            return await self._fallback.generate_sql(
+                question,
+                schema_context=schema_context,
+                examples=examples,
+                dialect=dialect,
+            )
 
     async def stream(
         self,

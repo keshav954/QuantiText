@@ -1,13 +1,13 @@
 # Grounding & Hallucination Evaluation Results
 
-> Generated: 2026-10-17 18:25
-> Tests: 5 | Hallucination-free: 3/5
+> Generated: 2026-10-22 21:22
+> Tests: 5 | Hallucination-free: 2/5
 
 ## Results
 
 | Test | Numbers Found | Grounded | Ungrounded | Grounding Rate | Hallucination Free |
 |------|--------------|----------|------------|----------------|-------------------|
-| Template Narrative | 2 | 2 | 0 | 100.0% | ✅ |
+| Template Narrative | 12 | 9 | 1 | 75.0% | ❌ |
 | Hallucinated Narrative (control) | 3 | 0 | 3 | 0.0% | ❌ |
 | Partial Grounding | 3 | 2 | 1 | 66.7% | ❌ |
 | Empty Data | 0 | 0 | 0 | 100.0% | ✅ |

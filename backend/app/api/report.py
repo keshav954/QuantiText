@@ -82,56 +82,6 @@ async def list_reports(
     return ReportListResponse(**result)
 
 
-@router.get(
-    "/{report_id}",
-    response_model=ReportDetail,
-    dependencies=[Depends(require_role("viewer"))],
-)
-async def get_report(
-    report_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ReportDetail:
-    """Get full report detail including aggregated data."""
-    result = await report_service.get_report(db, org_id=current_user.org_id, report_id=report_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Report not found")
-    return ReportDetail(**result)
-
-
-@router.get(
-    "/{report_id}/export",
-    response_class=PlainTextResponse,
-    dependencies=[Depends(require_role("viewer"))],
-)
-async def export_report(
-    report_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PlainTextResponse:
-    """Export a report as formatted plain text."""
-    text_content = await report_service.export_report_text(
-        db, org_id=current_user.org_id, report_id=report_id
-    )
-    if not text_content:
-        raise HTTPException(status_code=404, detail="Report not found")
-
-    await log_audit(
-        db,
-        action="export",
-        resource="report",
-        resource_id=str(report_id),
-        user_id=current_user.id,
-        org_id=current_user.org_id,
-    )
-
-    return PlainTextResponse(
-        content=text_content,
-        media_type="text/plain",
-        headers={"Content-Disposition": f"attachment; filename=report_{report_id}.txt"},
-    )
-
-
 # ── Recommendations ───────────────────────────────────────────────────────────
 
 
@@ -193,3 +143,56 @@ async def decide_recommendation(
     )
 
     return {"status": "ok", "action": body.action, "recommendation_id": recommendation_id}
+
+
+# ── Report Detail & Export ───────────────────────────────────────────────────
+
+
+@router.get(
+    "/{report_id}",
+    response_model=ReportDetail,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def get_report(
+    report_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ReportDetail:
+    """Get full report detail including aggregated data."""
+    result = await report_service.get_report(db, org_id=current_user.org_id, report_id=report_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return ReportDetail(**result)
+
+
+@router.get(
+    "/{report_id}/export",
+    response_class=PlainTextResponse,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def export_report(
+    report_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    """Export a report as formatted plain text."""
+    text_content = await report_service.export_report_text(
+        db, org_id=current_user.org_id, report_id=report_id
+    )
+    if not text_content:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    await log_audit(
+        db,
+        action="export",
+        resource="report",
+        resource_id=str(report_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+    )
+
+    return PlainTextResponse(
+        content=text_content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename=report_{report_id}.txt"},
+    )

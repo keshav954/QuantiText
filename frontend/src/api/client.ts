@@ -36,6 +36,12 @@ async function request<T>(
   })
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('quantitext-token')
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
     const body = await res.json().catch(() => ({}))
     // Extract a human-readable message from various error shapes:
     //  - Our AppException: { error: "msg", detail: {...} }

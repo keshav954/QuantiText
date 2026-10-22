@@ -23,7 +23,7 @@ import {
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/copilot', label: 'AI Copilot', icon: Bot },
+  { to: '/copilot', label: 'AI Chatbot', icon: Bot },
   { to: '/forecasts', label: 'Forecasts', icon: TrendingUp },
   { to: '/inventory', label: 'Inventory', icon: Package },
   { to: '/alerts', label: 'Alerts', icon: Bell },
@@ -49,7 +49,7 @@ export function Sidebar() {
         {!collapsed && (
           <div className="animate-fade-in">
             <h1 className="text-sm font-bold text-gradient">QuantiText</h1>
-            <p className="text-[10px] text-muted-foreground">Copilot</p>
+            <p className="text-[10px] text-muted-foreground">Chatbot</p>
           </div>
         )}
       </div>

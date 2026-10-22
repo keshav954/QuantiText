@@ -60,6 +60,8 @@ htmlcov/
 # Uploaded data (BYOD)
 data/uploads/
 data/reports/
+data/*.parquet
+*.parquet
 
 # Local logs
 *.txt.log
