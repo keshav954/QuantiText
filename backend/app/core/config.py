@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # ── LLM Provider ─────────────────────────────────────
     LLM_PROVIDER: str = "auto"  # ollama | gemini | auto
     GEMINI_API_KEY: str = ""
-    LLM_MODEL: str = "gemini-2.0-flash"
+    LLM_MODEL: str = "gemini-3.5-flash"
 
     # ── Ollama (local LLM) ───────────────────────────────
     OLLAMA_BASE_URL: str = "http://ollama:11434"
