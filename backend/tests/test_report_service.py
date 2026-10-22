@@ -51,6 +51,14 @@ async def test_report_export_requires_auth(async_client):
     assert response.status_code in (401, 403)
 
 
+@pytest.mark.asyncio
+async def test_recommendation_po_export_requires_auth(async_client):
+    """GET /api/v1/reports/recommendations/{id}/po should require auth."""
+    fake_id = str(uuid.uuid4())
+    response = await async_client.get(f"/api/v1/reports/recommendations/{fake_id}/po")
+    assert response.status_code in (401, 403)
+
+
 def test_template_narrative():
     """The template fallback narrative should produce valid text."""
     from app.services.report_service import _template_narrative

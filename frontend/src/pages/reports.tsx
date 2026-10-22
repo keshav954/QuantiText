@@ -31,6 +31,7 @@ import {
   useGenerateReport,
   useRecommendations,
   useDecideRecommendation,
+  downloadPurchaseOrder,
   type ReportOut,
   type RecommendationOut,
 } from '@/api/reports'
@@ -463,6 +464,25 @@ function RecommendationCard({
             >
               <XCircle className="h-3.5 w-3.5" />
               Reject
+            </button>
+          </div>
+        )}
+        {rec.status === 'approved' && (
+          <div className="shrink-0">
+            <button
+              id={`btn-download-po-${rec.id}`}
+              onClick={async () => {
+                try {
+                  await downloadPurchaseOrder(rec.id)
+                } catch (err) {
+                  console.error('PO download error:', err)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+              title="Download Authorized Purchase Order"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download PO
             </button>
           </div>
         )}

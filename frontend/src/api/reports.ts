@@ -91,3 +91,21 @@ export function useDecideRecommendation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recommendations'] }),
   })
 }
+
+export async function downloadPurchaseOrder(recommendationId: string): Promise<void> {
+  const token = localStorage.getItem('quantitext-token')
+  const res = await fetch(`/api/v1/reports/recommendations/${recommendationId}/po`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error('Failed to download purchase order')
+  const text = await res.text()
+  const blob = new Blob([text], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `PO_${recommendationId.slice(0, 8)}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}

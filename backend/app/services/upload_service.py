@@ -14,6 +14,7 @@ Data loaded via this service is clearly labelled as user-uploaded.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -24,8 +25,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
 
-# Temp upload directory
-_UPLOAD_DIR = Path("/app/data/uploads")
+
+def _get_upload_dir() -> Path:
+    """Return upload directory, creating it if necessary."""
+    if os.getenv("UPLOAD_DIR"):
+        p = Path(os.environ["UPLOAD_DIR"])
+    elif Path("/app/data").exists():
+        p = Path("/app/data/uploads")
+    else:
+        p = Path("data/uploads")
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
 
 # Known column synonyms for auto-detection
 _COLUMN_SYNONYMS: dict[str, list[str]] = {
@@ -57,9 +68,9 @@ _TARGET_COLUMNS = [
 
 async def save_upload(filename: str, content: bytes) -> str:
     """Save an uploaded file to the temp directory. Returns the stored filename."""
-    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    _get_upload_dir().mkdir(parents=True, exist_ok=True)
     safe_name = f"{uuid.uuid4().hex}_{filename}"
-    path = _UPLOAD_DIR / safe_name
+    path = _get_upload_dir() / safe_name
     path.write_bytes(content)
     log.info("Saved upload: %s (%d bytes)", safe_name, len(content))
     return safe_name
@@ -70,7 +81,7 @@ async def preview_upload(filename: str) -> dict:
     Read an uploaded file and auto-detect column mappings.
     Returns detected columns, suggested mappings, and sample rows.
     """
-    path = _UPLOAD_DIR / filename
+    path = _get_upload_dir() / filename
     df = _read_file(path)
 
     # Auto-detect mappings
@@ -94,7 +105,7 @@ async def validate_upload(filename: str, mappings: list[dict]) -> dict:
     Validate the uploaded data against the target schema.
     Returns validation results with error details.
     """
-    path = _UPLOAD_DIR / filename
+    path = _get_upload_dir() / filename
     df = _read_file(path)
 
     # Apply mappings
@@ -185,7 +196,7 @@ async def load_upload(
 
     Creates products, customers, orders, order_items, and daily_sales.
     """
-    path = _UPLOAD_DIR / filename
+    path = _get_upload_dir() / filename
     df = _read_file(path)
 
     # Apply mappings

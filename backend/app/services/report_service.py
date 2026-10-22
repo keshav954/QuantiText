@@ -352,6 +352,137 @@ async def decide_recommendation(
     return result.rowcount > 0
 
 
+async def generate_purchase_order(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    recommendation_id: uuid.UUID,
+) -> str | None:
+    """Generate a formal Purchase Order document for a recommendation."""
+    result = await db.execute(
+        text("""
+            SELECT
+                r.id, r.org_id, r.product_id, r.action_type, r.reason,
+                r.parameters, r.status, r.approved_by, r.decided_at, r.created_at,
+                p.name AS product_name, p.sku,
+                c.name AS category_name,
+                i.stock_on_hand, i.reorder_point, i.lead_time_days, i.unit_cost,
+                u.full_name AS approver_name, u.email AS approver_email,
+                o.name AS org_name
+            FROM recommendations r
+            LEFT JOIN products p ON p.id = r.product_id
+            LEFT JOIN categories c ON c.id = p.category_id
+            LEFT JOIN inventory i ON i.product_id = r.product_id AND i.org_id = r.org_id
+            LEFT JOIN users u ON u.id = r.approved_by
+            JOIN orgs o ON o.id = r.org_id
+            WHERE r.id = :id AND r.org_id = :org_id
+        """),
+        {"id": str(recommendation_id), "org_id": str(org_id)},
+    )
+    row = result.mappings().first()
+    if not row:
+        return None
+
+    params = row["parameters"] or {}
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except Exception:
+            params = {}
+
+    suggested_qty = int(params.get("suggested_qty", 100))
+    lead_time = int(params.get("lead_time_days") or row["lead_time_days"] or 7)
+    unit_cost = float(params.get("unit_cost") or row["unit_cost"] or 25.0)
+    urgency = str(params.get("urgency", "standard")).upper()
+    subtotal = suggested_qty * unit_cost
+    freight = 75.00 if subtotal > 0 else 0.00
+    vat = subtotal * 0.20
+    total_amount = subtotal + freight + vat
+
+    po_ref = f"PO-{str(row['id'])[:8].upper()}"
+    status_label = (
+        "AUTHORIZED PURCHASE ORDER"
+        if row["status"] == "approved"
+        else f"PURCHASE REQUISITION ({row['status'].upper()})"
+    )
+    created_dt = row["created_at"].strftime("%Y-%m-%d %H:%M UTC") if row["created_at"] else "N/A"
+    decided_dt = (
+        row["decided_at"].strftime("%Y-%m-%d %H:%M UTC")
+        if row["decided_at"]
+        else "PENDING DECISION"
+    )
+    approver = (
+        f"{row['approver_name']} ({row['approver_email']})"
+        if row["approver_name"]
+        else "System Decision Queue"
+    )
+    target_delivery = (
+        (row["created_at"] + timedelta(days=lead_time)).strftime("%Y-%m-%d")
+        if row["created_at"]
+        else "TBD"
+    )
+
+    lines = [
+        "=" * 78,
+        f"{'QUANTITEXT DECISION SUPPORT SYSTEM':^78}",
+        f"{status_label:^78}",
+        f"{'Reference: ' + po_ref:^78}",
+        "=" * 78,
+        "",
+        "1. ORDER HEADER & AUTHORIZATION",
+        "-" * 78,
+        f"  PO Number:            {po_ref}",
+        f"  Issue Timestamp:      {created_dt}",
+        f"  Order Status:         {row['status'].upper()}",
+        f"  Authorized Approver:  {approver}",
+        f"  Authorization Date:   {decided_dt}",
+        f"  Requested Lead Time:  {lead_time} business days",
+        f"  Target Delivery Date: {target_delivery}",
+        "",
+        "2. PURCHASING ENTITY & DESTINATION",
+        "-" * 78,
+        f"  Organization:         {row['org_name']}",
+        "  Procurement Division: Supply Chain & Replenishment Operations",
+        "  Delivery Hub:         Central Distribution Facility — Intake Dock B",
+        "",
+        "3. PRODUCT SPECIFICATIONS & LINE ITEMS",
+        "-" * 78,
+        f"  SKU:                  {row['sku'] or 'N/A'}",
+        f"  Product Name:         {row['product_name'] or 'N/A'}",
+        f"  Category:             {row['category_name'] or 'General Goods'}",
+        f"  Warehouse Inventory:  {row['stock_on_hand'] or 0} on hand  |  Reorder Point: {row['reorder_point'] or 0}",
+        "",
+        f"  {'ITEM':<32} {'QTY':>8} {'UNIT COST':>14} {'EXT AMOUNT':>16}",
+        f"  {'-' * 32} {'-' * 8} {'-' * 14} {'-' * 16}",
+        f"  {(row['product_name'] or 'Retail Item')[:32]:<32} {suggested_qty:>8,d} {f'£{unit_cost:.2f}':>14} {f'£{subtotal:,.2f}':>16}",
+        f"  {'-' * 72:>74}",
+        f"  {'Merchandise Subtotal:':<56} {f'£{subtotal:,.2f}':>16}",
+        f"  {'Freight & Inbound Handling (Standard Logistics):':<56} {f'£{freight:,.2f}':>16}",
+        f"  {'Estimated VAT / Tax (20%):':<56} {f'£{vat:,.2f}':>16}",
+        f"  {'=' * 72:>74}",
+        f"  {'TOTAL PURCHASE ORDER VALUE:':<56} {f'£{total_amount:,.2f}':>16}",
+        "",
+        "4. ALGORITHMIC RATIONALE & CLOSED-LOOP AUDIT TRAIL",
+        "-" * 78,
+        f"  Action Category:      {row['action_type'].upper()}",
+        f"  Urgency Classification: {urgency}",
+        f"  Analytical Trigger:   {row['reason']}",
+        f"  Recommendation UUID:  {row['id']}",
+        "",
+        "5. STANDARD COMMERCIAL TERMS & INSTRUCTIONS",
+        "-" * 78,
+        "  1. Vendor must acknowledge receipt and confirm ship date within 24 hours.",
+        "  2. PO reference must be printed prominently on exterior master cartons and bill of lading.",
+        "  3. Standard Payment Terms: Net 30 days from automated warehouse intake barcode verification.",
+        "  4. Quantity variances greater than 2% require explicit procurement re-approval.",
+        "",
+        "=" * 78,
+        "⚠️  Inventory, cost, lead-time and approval records generated by QuantiText DSS.",
+        "=" * 78,
+    ]
+    return "\n".join(lines)
+
+
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 

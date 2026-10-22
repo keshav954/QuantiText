@@ -145,6 +145,42 @@ async def decide_recommendation(
     return {"status": "ok", "action": body.action, "recommendation_id": recommendation_id}
 
 
+@router.get(
+    "/recommendations/{recommendation_id}/po",
+    response_class=PlainTextResponse,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def export_purchase_order(
+    recommendation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    """Generate and export a formal Purchase Order document for a recommendation."""
+    text_content = await report_service.generate_purchase_order(
+        db, org_id=current_user.org_id, recommendation_id=recommendation_id
+    )
+    if not text_content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Purchase order unavailable or recommendation not found",
+        )
+
+    await log_audit(
+        db,
+        action="export_po",
+        resource="purchase_order",
+        resource_id=str(recommendation_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+    )
+
+    return PlainTextResponse(
+        content=text_content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename=PO_{recommendation_id}.txt"},
+    )
+
+
 # ── Report Detail & Export ───────────────────────────────────────────────────
 
 
