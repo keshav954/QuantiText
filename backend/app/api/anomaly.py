@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_role
@@ -142,3 +142,19 @@ async def mark_alerts_read(
         db, org_id=current_user.org_id, alert_ids=body.alert_ids
     )
     return {"marked_read": count}
+
+
+@router.websocket("/alerts/ws")
+async def alerts_websocket(websocket: WebSocket) -> None:
+    """Real-time alerts WebSocket connection."""
+    await websocket.accept()
+    try:
+        await websocket.send_json(
+            {"type": "connected", "message": "QuantiText real-time alerts stream connected"}
+        )
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass

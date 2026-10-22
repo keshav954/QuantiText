@@ -51,6 +51,39 @@ export interface ReorderSuggestion {
   urgency: 'immediate' | 'soon' | 'watch'
 }
 
+export interface WhatIfRequest {
+  demand_change_pct: number
+  lead_time_delay_days: number
+  product_id?: string | null
+}
+
+export interface WhatIfItemResult {
+  product_id: string
+  sku: string
+  product_name: string
+  baseline_stock_on_hand: number
+  baseline_safety_stock: number
+  baseline_reorder_point: number
+  baseline_days_of_stock: number
+  simulated_safety_stock: number
+  simulated_reorder_point: number
+  simulated_days_of_stock: number
+  stockout_risk: 'high' | 'medium' | 'low' | 'none'
+  stockout_in_days: number | null
+  projected_reorder_qty: number
+  projected_additional_cost: number
+}
+
+export interface WhatIfResponse {
+  scenario_name: string
+  demand_change_pct: number
+  lead_time_delay_days: number
+  items: WhatIfItemResult[]
+  total_stockout_risks: number
+  estimated_capital_impact: number
+  synthetic_notice: string
+}
+
 export function fetchInventorySummary(): Promise<InventorySummary> {
   return apiFetch('/inventory/summary')
 }
@@ -72,3 +105,11 @@ export function fetchInventoryList(params: {
 export function fetchReorderSuggestions(limit = 20): Promise<ReorderSuggestion[]> {
   return apiFetch(`/inventory/reorder-suggestions?limit=${limit}`)
 }
+
+export function simulateWhatIf(payload: WhatIfRequest): Promise<WhatIfResponse> {
+  return apiFetch('/inventory/what-if', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+

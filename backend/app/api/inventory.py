@@ -18,6 +18,8 @@ from app.schemas.inventory import (
     InventoryListResponse,
     InventorySummary,
     ReorderSuggestion,
+    WhatIfRequest,
+    WhatIfResponse,
 )
 from app.services import inventory_service
 
@@ -89,3 +91,27 @@ async def reorder_suggestions(
         db, org_id=current_user.org_id, limit=limit
     )
     return [ReorderSuggestion(**s) for s in suggestions]
+
+
+@router.post(
+    "/what-if",
+    response_model=WhatIfResponse,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def simulate_what_if_scenario(
+    payload: WhatIfRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> WhatIfResponse:
+    """
+    Simulate inventory health under demand shocks (+/- %) and supplier lead time delays.
+    ⚠️ All parameters and results are SYNTHETIC.
+    """
+    result = await inventory_service.simulate_what_if(
+        db,
+        org_id=current_user.org_id,
+        demand_change_pct=payload.demand_change_pct,
+        lead_time_delay_days=payload.lead_time_delay_days,
+        product_id=payload.product_id,
+    )
+    return WhatIfResponse(**result)

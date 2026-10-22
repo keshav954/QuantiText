@@ -148,55 +148,86 @@ async def chat(
 
     provider = get_provider()
 
-    # 3. Generate SQL
-    raw_sql_response = await provider.generate_sql(
-        question,
-        schema_context=schema_ctx + "\n" + _GLOSSARY,
-        examples=examples,
-    )
-    raw_sql = raw_sql_response.text
-
+    # 3. Generate SQL with self-repair loop (max 2 retries)
+    max_retries = 2
+    current_attempt = 0
+    raw_sql = None
     query_result = None
     sql = None
     answer = ""
+    last_error = ""
 
-    try:
-        sql = _validate_sql(raw_sql)
-        sql = _inject_org_id(sql, str(org_id))
+    while current_attempt <= max_retries:
+        if current_attempt == 0:
+            raw_sql_response = await provider.generate_sql(
+                question,
+                schema_context=schema_ctx + "\n" + _GLOSSARY,
+                examples=examples,
+            )
+        else:
+            log.info(
+                "NL2SQL Self-repair attempt %d for query error: %s",
+                current_attempt,
+                last_error,
+            )
+            repair_prompt = (
+                f"User Question: {question}\n\n"
+                f"Previous SQL attempt:\n{raw_sql}\n\n"
+                f"Database error encountered:\n{last_error}\n\n"
+                f"Please fix the SQL query to resolve this error using ONLY the available schema views."
+            )
+            raw_sql_response = await provider.generate_sql(
+                repair_prompt,
+                schema_context=schema_ctx + "\n" + _GLOSSARY,
+                examples=examples,
+            )
 
-        # 4. Execute on readonly connection
-        result = await readonly_db.execute(text(sql))
-        columns = list(result.keys())
-        rows = [list(r) for r in result.fetchmany(200)]  # cap at 200 rows
+        raw_sql = raw_sql_response.text
 
-        query_result = {
-            "sql": sql,
-            "columns": columns,
-            "rows": rows,
-            "row_count": len(rows),
-            "chart_type": _infer_chart_type(question, columns, len(rows)),
-        }
+        try:
+            sql = _validate_sql(raw_sql)
+            sql = _inject_org_id(sql, str(org_id))
 
-        # 5. Generate narrative answer
-        result_preview = _format_result_for_llm(columns, rows[:10])
-        answer_response = await provider.generate(
-            f"Question: {question}\n\nQuery Result:\n{result_preview}\n\nProvide a concise, accurate answer using ONLY the numbers above.",
-            system_prompt=(
-                "You are a BI analyst. Answer the user's question using ONLY the provided query results. "
-                "Never invent numbers. Be concise (2-4 sentences). Mention key figures."
-            ),
-            task_type=TaskType.TEXT_EXPLANATION,
-            temperature=0.1,
-        )
-        answer = answer_response.text
+            # 4. Execute on readonly connection
+            result = await readonly_db.execute(text(sql))
+            columns = list(result.keys())
+            rows = [list(r) for r in result.fetchmany(200)]  # cap at 200 rows
 
-    except ValueError as e:
-        log.warning("SQL validation failed: %s", e)
-        answer = "I couldn't generate a valid SQL query for that question. Could you rephrase it?"
-        sql = None
-    except Exception as e:
-        log.error("SQL execution failed: %s", e)
-        answer = "The query ran into an issue. Please try rephrasing your question."
+            query_result = {
+                "sql": sql,
+                "columns": columns,
+                "rows": rows,
+                "row_count": len(rows),
+                "chart_type": _infer_chart_type(question, columns, len(rows)),
+            }
+
+            # 5. Generate narrative answer
+            result_preview = _format_result_for_llm(columns, rows[:10])
+            answer_response = await provider.generate(
+                f"Question: {question}\n\nQuery Result:\n{result_preview}\n\nProvide a concise, accurate answer using ONLY the numbers above.",
+                system_prompt=(
+                    "You are a BI analyst. Answer the user's question using ONLY the provided query results. "
+                    "Never invent numbers. Be concise (2-4 sentences). Mention key figures."
+                ),
+                task_type=TaskType.TEXT_EXPLANATION,
+                temperature=0.1,
+            )
+            answer = answer_response.text
+            break
+
+        except ValueError as e:
+            last_error = f"SQL validation failed: {e}"
+            log.warning("SQL validation attempt %d failed: %s", current_attempt, e)
+            current_attempt += 1
+            if current_attempt > max_retries:
+                answer = "I couldn't generate a valid SQL query for that question. Could you rephrase it?"
+                sql = None
+        except Exception as e:
+            last_error = f"Execution error: {e}"
+            log.warning("SQL execution attempt %d failed: %s", current_attempt, e)
+            current_attempt += 1
+            if current_attempt > max_retries:
+                answer = "The query ran into an issue. Please try rephrasing your question."
 
     # 6. Generate follow-up suggestions
     follow_ups = _generate_follow_ups(question, query_result)

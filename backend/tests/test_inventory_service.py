@@ -4,6 +4,8 @@ Tests for inventory service — unit tests using mock DB sessions.
 
 from __future__ import annotations
 
+import pytest
+
 from app.services.inventory_service import _classify_abc, _eoq, _safety_stock, _stock_status
 
 # ── Unit tests for pure calculation functions ───────────────────────────────────
@@ -98,3 +100,34 @@ def test_stock_status_ok():
 def test_stock_status_overstock():
     """More than 180 days of stock → overstock."""
     assert _stock_status(500, 10, 5, 181.0) == "overstock"
+
+
+def test_what_if_shock_calculations():
+    """Test safety stock & ROP increase under demand and lead time shocks."""
+    base_avg = 10.0
+    base_std = 2.0
+    base_lt = 4
+    base_ss = _safety_stock(base_avg, base_std, base_lt)
+    base_rop = round(base_avg * base_lt + base_ss)
+
+    # 50% demand shock, +3 days lead time delay
+    demand_multiplier = 1.5
+    sim_avg = base_avg * demand_multiplier
+    sim_std = base_std * (demand_multiplier**0.5)
+    sim_lt = base_lt + 3
+    sim_ss = _safety_stock(sim_avg, sim_std, sim_lt)
+    sim_rop = round(sim_avg * sim_lt + sim_ss)
+
+    assert sim_ss > base_ss
+    assert sim_rop > base_rop
+    assert sim_rop > 100
+
+
+@pytest.mark.asyncio
+async def test_what_if_endpoint_requires_auth(async_client):
+    """POST /api/v1/inventory/what-if requires authentication."""
+    response = await async_client.post(
+        "/api/v1/inventory/what-if",
+        json={"demand_change_pct": 20.0, "lead_time_delay_days": 5},
+    )
+    assert response.status_code in (401, 403)

@@ -2,190 +2,172 @@
 
 ## Overview
 
-This guide covers deploying QuantiText to a production environment.
-The recommended stack is AWS EC2 + RDS, but any Linux server with Docker works.
+This guide covers deploying QuantiText to production on a single Linux server (AWS EC2, DigitalOcean, or any VPS) using Docker Compose. The production stack runs NGINX, the React Frontend, FastAPI Backend, PostgreSQL 16, and Redis 7 within Docker containers.
 
-## Prerequisites
+---
 
-- Linux server (Ubuntu 22.04+ recommended) with Docker 24+ and Docker Compose v2
-- PostgreSQL 16 (RDS or self-hosted)
-- Redis 7 (ElastiCache or self-hosted)
-- Domain name with DNS configured
-- Gemini API key from [Google AI Studio](https://aistudio.google.com/)
+## AWS EC2 Sizing & Server Setup
 
-## Quick Deploy (Single Server)
+### 1. EC2 Instance Specification
+- **OS**: Ubuntu 22.04 LTS (or 24.04 LTS), 64-bit (x86_64)
+- **Instance Type**: `t3.medium` (2 vCPU, 4 GB RAM) minimum (or `t3.large` / 8 GB if available)
+- **Storage**: **40 GB gp3** (required for ML dependencies and build caches)
+- **Elastic IP**: Allocate and associate an Elastic IP so the public address does not change on reboot
 
+### 2. Security Group Rules
+- **Port 80 (HTTP)**: `0.0.0.0/0` (Anywhere)
+- **Port 443 (HTTPS)**: `0.0.0.0/0` (Anywhere)
+- **Port 22 (SSH)**: `Your IP only`
+- *Never expose ports 5432, 6379, or 8000 to the public internet.*
+
+### 3. Server Initialization (Docker & 4GB Swap)
+
+Connect to the server:
 ```bash
-# 1. Clone and configure
-git clone <repo-url> /opt/quantitext
+ssh -i "your-key.pem" ubuntu@<your-elastic-ip>
+```
+
+Install Docker and configure 4GB swap space (essential on 4GB instances to prevent OOM errors during ML initialization):
+```bash
+# Update packages and install Docker
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git curl
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+
+# Configure 4GB swap
+sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Apply group changes
+newgrp docker
+```
+
+---
+
+## Deploying QuantiText
+
+### 1. Clone Repository & Setup Directory
+```bash
+sudo mkdir -p /opt/quantitext
+sudo chown -R ubuntu:ubuntu /opt/quantitext
 cd /opt/quantitext
-cp .env.example .env
 
-# 2. Edit .env with production values
-#    - Set strong SECRET_KEY (64+ random chars)
-#    - Set POSTGRES_PASSWORD (strong, random)
-#    - Set GEMINI_API_KEY
-#    - Set DEBUG=false
-#    - Set DATABASE_URL to point to your PostgreSQL
-#    - Set REDIS_URL to point to your Redis
+git clone https://github.com/keshav954/QuantiText.git .
+```
+
+### 2. Configure Environment (`.env`)
+```bash
+cp .env.production.example .env
 nano .env
+```
 
-# 3. Build and start
+Ensure the following are set:
+- `DEBUG=false`
+- `SECRET_KEY`: Generate a random 64-character string (`openssl rand -hex 32`)
+- `POSTGRES_PASSWORD`: Strong random password (e.g., `pg_prod_948f21`)
+- `REDIS_PASSWORD`: Strong random password (e.g., `redis_prod_831a47`)
+- `REDIS_URL`: `redis://:<your-redis-password>@redis:6379/0`
+- `DATABASE_URL`: `postgresql+asyncpg://quantitext:<your-pg-password>@postgres:5432/quantitext`
+- `DATABASE_URL_SYNC`: `postgresql+psycopg2://quantitext:<your-pg-password>@postgres:5432/quantitext`
+- `DB_READONLY_URL`: `postgresql+asyncpg://bi_readonly:<readonly-password>@postgres:5432/quantitext`
+- `LLM_PROVIDER`: `gemini`
+- `GEMINI_API_KEY`: Your key from [Google AI Studio](https://aistudio.google.com/)
+- `LLM_MODEL`: `gemini-3.5-flash`
+- `MLFLOW_TRACKING_URI`: `file:/tmp/mlruns`
+
+### 3. Start Production Containers
+```bash
 docker compose -f docker-compose.prod.yml up --build -d
-
-# 4. Run migrations
-docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
-
-# 5. Seed demo data (optional)
-docker compose -f docker-compose.prod.yml exec backend python -m data.seed
-
-# 6. Verify
-curl http://localhost/health
 ```
 
-## AWS EC2 + RDS Setup
-
-### EC2 Instance
-
-- **Instance type**: t3.medium (2 vCPU, 4 GB RAM) minimum
-- **Storage**: 30 GB gp3
-- **Security group**:
-  - Inbound: 80 (HTTP), 443 (HTTPS), 22 (SSH from your IP only)
-  - Outbound: All traffic
-
-### RDS PostgreSQL
-
-- **Engine**: PostgreSQL 16
-- **Instance**: db.t3.micro (dev) or db.t3.medium (prod)
-- **Storage**: 20 GB gp3
-- **VPC**: Same VPC as EC2
-- **Security group**: Allow inbound 5432 from EC2 security group only
-
-### ElastiCache Redis
-
-- **Engine**: Redis 7
-- **Node type**: cache.t3.micro
-- **VPC**: Same VPC as EC2
-
-### Environment Variables
-
-Update `.env` to point to RDS/ElastiCache:
-
-```env
-DATABASE_URL=postgresql+asyncpg://quantitext:<password>@<rds-endpoint>:5432/quantitext
-DATABASE_URL_SYNC=postgresql+psycopg2://quantitext:<password>@<rds-endpoint>:5432/quantitext
-DB_READONLY_URL=postgresql+asyncpg://quantitext_readonly:<password>@<rds-endpoint>:5432/quantitext
-REDIS_URL=redis://:<password>@<elasticache-endpoint>:6379/0
-```
-
-## HTTPS with Let's Encrypt
-
+### 4. Run Migrations & Enable Read-Only Role
 ```bash
-# Install certbot
-sudo apt install certbot python3-certbot-nginx
+# Apply schema migrations
+docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
 
-# Get certificate
-sudo certbot --nginx -d your-domain.com
+# Activate bi_readonly login role for secure, unprivileged NL2SQL queries
+docker compose -f docker-compose.prod.yml exec -T postgres psql -U quantitext -d quantitext \
+  -c "ALTER ROLE bi_readonly WITH LOGIN PASSWORD '<readonly-password>';"
 
-# Auto-renewal is configured automatically
+# Restart backend to connect with the read-only credentials
+docker compose -f docker-compose.prod.yml restart backend
 ```
 
-## Backup
-
-### Database Backup Script
-
+### 5. Seed Initial Data
 ```bash
-#!/bin/bash
-# infra/backup.sh — run daily via cron
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR=/opt/backups
-
-mkdir -p $BACKUP_DIR
-
-# PostgreSQL dump
-docker compose -f /opt/quantitext/docker-compose.prod.yml exec -T postgres \
-  pg_dump -U ${POSTGRES_USER:-quantitext} ${POSTGRES_DB:-quantitext} \
-  | gzip > $BACKUP_DIR/db_${TIMESTAMP}.sql.gz
-
-# Keep last 7 days
-find $BACKUP_DIR -name "db_*.sql.gz" -mtime +7 -delete
-
-echo "Backup completed: db_${TIMESTAMP}.sql.gz"
+docker compose -f docker-compose.prod.yml exec -T backend python -m data.seed
 ```
 
+### 6. Reset Admin Password
+For production security, update the default password (`admin123`) for `admin@demo.local`:
 ```bash
-# Install automated production crontab (backup, retrain, weekly reports)
+# Generate argon2 hash for your new password
+docker compose -f docker-compose.prod.yml exec -T backend python -c \
+  "from app.core.security import hash_password; print(hash_password('YourNewSecurePassword'))"
+
+# Update user table with the printed hash
+docker compose -f docker-compose.prod.yml exec -T postgres psql -U quantitext -d quantitext \
+  -c "UPDATE users SET hashed_password='<paste-printed-hash>' WHERE email='admin@demo.local';"
+```
+
+### 7. Install Automated Crontab
+```bash
 crontab /opt/quantitext/infra/crontab
 ```
+This runs:
+- Daily encrypted database backup at 02:00 UTC.
+- Weekly LightGBM demand forecast retraining on Sundays at 03:00 UTC.
 
-## Monitoring
+---
 
-### Health Endpoint
+## Domain & HTTPS Configuration (Optional)
 
+If accessing directly via your EC2 Elastic IP, the site works over HTTP:
+`http://<your-elastic-ip>`
+
+If you have a domain (e.g. `bi.yourdomain.com`) pointing to your Elastic IP:
+
+1. Stop the NGINX container temporarily to free port 80:
 ```bash
-# Check application health
-curl http://localhost/health | python3 -m json.tool
+docker compose -f docker-compose.prod.yml stop nginx
 ```
 
-Response:
-```json
-{
-  "status": "healthy",
-  "version": "0.1.0",
-  "timestamp": "2026-01-01T00:00:00Z",
-  "services": {
-    "postgres": "connected",
-    "redis": "connected"
-  }
-}
+2. Generate Let's Encrypt certificates via standalone mode:
+```bash
+sudo apt install -y certbot
+sudo certbot certonly --standalone -d bi.yourdomain.com
 ```
 
-### Log Monitoring
+3. Update `docker-compose.prod.yml` to mount the SSL config and certificates:
+```yaml
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx.ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+*(In `infra/nginx.ssl.conf`, replace `your-domain.com` with `bi.yourdomain.com`).*
+
+4. Start NGINX:
+```bash
+docker compose -f docker-compose.prod.yml up -d nginx
+```
+
+---
+
+## Verification & Health Check
 
 ```bash
+# Verify health endpoint returns 'healthy' for both Postgres and Redis
+curl http://localhost/health
+
+# Check running containers
+docker compose -f docker-compose.prod.yml ps
+
 # View backend logs
-docker compose -f docker-compose.prod.yml logs -f backend
-
-# View NGINX access logs
-docker compose -f docker-compose.prod.yml logs -f nginx
+docker compose -f docker-compose.prod.yml logs backend --tail 50
 ```
-
-## Security Checklist
-
-- [ ] `.env` is not committed to git (in `.gitignore`)
-- [ ] `SECRET_KEY` is a random 64+ character string
-- [ ] `DEBUG=false` in production
-- [ ] PostgreSQL password is strong and unique
-- [ ] Redis is password-protected
-- [ ] NGINX rate limits are enabled
-- [ ] Security headers are set (X-Frame-Options, CSP, etc.)
-- [ ] SSH key-only authentication on the server
-- [ ] Firewall allows only 80, 443, and SSH
-- [ ] Database is not exposed to the internet
-- [ ] API docs are disabled in production (`docs_url=None` when `DEBUG=false`)
-- [ ] No secrets or API keys in the codebase
-
-## Demo Mode
-
-To run in demo mode with synthetic data:
-
-```bash
-docker compose up --build -d
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m data.seed
-```
-
-Login with: **admin@demo.local** / **admin123**
-
-> ⚠️ Demo data is SYNTHETIC. Never use demo credentials in production.
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Backend won't start | Check `docker compose logs backend` — likely DB connection issue |
-| 502 Bad Gateway | Backend container may have crashed — restart with `docker compose restart backend` |
-| Slow queries | Check PostgreSQL slow query log; add indexes on frequently filtered columns |
-| Redis connection refused | Verify REDIS_URL and that Redis container is healthy |
-| LLM errors | Check GEMINI_API_KEY is valid; copilot falls back gracefully on LLM failure |
-| Upload fails | Check file size limit (50MB); verify manager+ role |

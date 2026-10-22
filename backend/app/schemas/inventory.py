@@ -67,3 +67,42 @@ class ReorderSuggestion(BaseModel):
     suggested_qty: int
     estimated_cost: float
     urgency: str  # immediate | soon | watch
+
+
+class WhatIfRequest(BaseModel):
+    """Parameters for inventory what-if scenario simulation."""
+
+    demand_change_pct: float = 0.0  # e.g. +20.0 for 20% surge, -10.0 for drop
+    lead_time_delay_days: int = 0  # e.g. +7 days supplier delay
+    product_id: UUID | None = None  # None = simulate all products
+
+
+class WhatIfItemResult(BaseModel):
+    """Simulated inventory metrics for a product under what-if conditions."""
+
+    product_id: UUID
+    sku: str
+    product_name: str
+    baseline_stock_on_hand: int
+    baseline_safety_stock: int
+    baseline_reorder_point: int
+    baseline_days_of_stock: float
+    simulated_safety_stock: int
+    simulated_reorder_point: int
+    simulated_days_of_stock: float
+    stockout_risk: str  # high | medium | low | none
+    stockout_in_days: float | None = None
+    projected_reorder_qty: int
+    projected_additional_cost: float
+
+
+class WhatIfResponse(BaseModel):
+    """Summary and details of simulated inventory scenario."""
+
+    scenario_name: str
+    demand_change_pct: float
+    lead_time_delay_days: int
+    items: list[WhatIfItemResult]
+    total_stockout_risks: int
+    estimated_capital_impact: float
+    synthetic_notice: str = "⚠️ SYNTHETIC SIMULATION — All parameters and projections are simulated."

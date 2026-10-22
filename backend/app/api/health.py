@@ -44,6 +44,43 @@ async def health_check(
         status["services"]["redis"] = "up"
     except Exception:
         status["services"]["redis"] = "down"
-        status["status"] = "degraded"
-
     return status
+
+
+@router.get("/metrics")
+async def metrics_endpoint(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Returns operational metrics for monitoring and health dashboards.
+    """
+    db_up = False
+    prod_count = 0
+    sales_count = 0
+    try:
+        res = await db.execute(text("SELECT COUNT(*) FROM products"))
+        prod_count = res.scalar() or 0
+        sales_res = await db.execute(text("SELECT COUNT(*) FROM daily_sales"))
+        sales_count = sales_res.scalar() or 0
+        db_up = True
+    except Exception:
+        pass
+
+    redis_up = False
+    try:
+        redis = await get_redis()
+        await redis.ping()
+        redis_up = True
+    except Exception:
+        pass
+
+    return {
+        "status": "up" if (db_up and redis_up) else "degraded",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "metrics": {
+            "postgres_connected": db_up,
+            "redis_connected": redis_up,
+            "products_monitored": prod_count,
+            "sales_datapoints": sales_count,
+        },
+    }

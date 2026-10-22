@@ -220,6 +220,109 @@ async def get_reorder_suggestions(
     return suggestions[:limit]
 
 
+async def simulate_what_if(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    demand_change_pct: float = 0.0,
+    lead_time_delay_days: int = 0,
+    product_id: uuid.UUID | None = None,
+) -> dict:
+    """
+    Simulate inventory health, safety stock, and stockout risk under demand shocks
+    and supplier delays.
+    ⚠️ All parameters and results are SYNTHETIC.
+    """
+    rows = await _load_inventory_rows(db, org_id)
+    demand_stats = await _load_demand_stats(db, org_id)
+
+    demand_multiplier = max(0.0, 1.0 + (demand_change_pct / 100.0))
+
+    item_results = []
+    total_stockout_risks = 0
+    total_capital_impact = 0.0
+
+    for row in rows:
+        pid = row["product_id"]
+        if product_id is not None and pid != product_id:
+            continue
+
+        product_id_str = str(pid)
+        stats = demand_stats.get(product_id_str, {"avg": 0.0, "std": 0.0, "annual": 0.0})
+
+        base_avg_daily = stats["avg"]
+        base_std_daily = stats["std"]
+        base_lead_time = int(row["lead_time_days"])
+        stock = int(row["stock_on_hand"])
+        unit_cost = float(row["unit_cost"])
+
+        # Baselines
+        base_ss = _safety_stock(base_avg_daily, base_std_daily, base_lead_time)
+        base_rop = int(row["reorder_point"])
+        base_dos = (stock / base_avg_daily) if base_avg_daily > 0 else 9999.0
+
+        # Simulated values
+        sim_avg_daily = base_avg_daily * demand_multiplier
+        sim_std_daily = (
+            base_std_daily * math.sqrt(demand_multiplier) if demand_multiplier > 0 else 0.0
+        )
+        sim_lead_time = max(1, base_lead_time + max(0, lead_time_delay_days))
+        sim_ss = _safety_stock(sim_avg_daily, sim_std_daily, sim_lead_time)
+        sim_rop = round(sim_avg_daily * sim_lead_time + sim_ss)
+        sim_dos = (stock / sim_avg_daily) if sim_avg_daily > 0 else 9999.0
+
+        # Stockout risk classification
+        if sim_dos <= sim_lead_time or stock <= 0:
+            risk = "high"
+            total_stockout_risks += 1
+        elif stock <= sim_ss:
+            risk = "medium"
+            total_stockout_risks += 1
+        elif stock <= sim_rop:
+            risk = "low"
+        else:
+            risk = "none"
+
+        stockout_in = round(sim_dos, 1) if sim_dos < 9999 else None
+        projected_reorder = max(0, sim_rop - stock)
+        additional_cost = round(projected_reorder * unit_cost, 2)
+        total_capital_impact += additional_cost
+
+        item_results.append(
+            {
+                "product_id": pid,
+                "sku": row["sku"],
+                "product_name": row["product_name"],
+                "baseline_stock_on_hand": stock,
+                "baseline_safety_stock": base_ss,
+                "baseline_reorder_point": base_rop,
+                "baseline_days_of_stock": round(min(base_dos, 9999), 1),
+                "simulated_safety_stock": sim_ss,
+                "simulated_reorder_point": sim_rop,
+                "simulated_days_of_stock": round(min(sim_dos, 9999), 1),
+                "stockout_risk": risk,
+                "stockout_in_days": stockout_in,
+                "projected_reorder_qty": projected_reorder,
+                "projected_additional_cost": additional_cost,
+            }
+        )
+
+    risk_rank = {"high": 0, "medium": 1, "low": 2, "none": 3}
+    item_results.sort(key=lambda x: (risk_rank[x["stockout_risk"]], x["stockout_in_days"] or 9999))
+
+    scenario_name = f"Demand {demand_change_pct:+.0f}%, Supplier Lead Time +{lead_time_delay_days}d"
+
+    return {
+        "scenario_name": scenario_name,
+        "demand_change_pct": demand_change_pct,
+        "lead_time_delay_days": lead_time_delay_days,
+        "items": item_results,
+        "total_stockout_risks": total_stockout_risks,
+        "estimated_capital_impact": round(total_capital_impact, 2),
+        "synthetic_notice": "⚠️ SYNTHETIC SIMULATION — All parameters and projections are simulated.",
+    }
+
+
 # ── Private DB helpers ─────────────────────────────────────────────────────────
 
 
