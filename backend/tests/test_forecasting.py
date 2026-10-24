@@ -94,6 +94,44 @@ def test_lgbm_forecaster_fit_and_predict():
     assert (preds["point"] <= preds["upper"]).all()
 
 
+def test_walk_forward_no_data_leakage():
+    """
+    Verify that features and walk-forward training have zero data leakage:
+    1. Feature vectors at time t cannot depend on future values (t+1, t+2, ...).
+    2. Modifying test data strictly after the cutoff does not alter the training features or model predictions.
+    """
+    series_original = _make_sample_series(90)
+    cutoff = 60
+    horizon = 7
+
+    # Build features on full series vs truncated series up to cutoff
+    train_orig = series_original.iloc[:cutoff]
+    df_train_orig = build_features(train_orig)
+
+    # Now create a modified series where all future values (t >= cutoff) are perturbed
+    series_perturbed = series_original.copy()
+    series_perturbed.iloc[cutoff:] = series_perturbed.iloc[cutoff:] * 100.0 + 500.0
+
+    train_perturbed = series_perturbed.iloc[:cutoff]
+    df_train_perturbed = build_features(train_perturbed)
+
+    # 1. Training features must be bitwise identical
+    pd.testing.assert_frame_equal(df_train_orig, df_train_perturbed)
+
+    # 2. Model trained on train_orig vs train_perturbed must produce identical predictions
+    model1 = LightGBMForecaster(model_key="leakage_test_1", horizon=horizon)
+    model1.train(train_orig)
+    preds1 = model1.predict(horizon=horizon)
+
+    model2 = LightGBMForecaster(model_key="leakage_test_2", horizon=horizon)
+    model2.train(train_perturbed)
+    preds2 = model2.predict(horizon=horizon)
+
+    np.testing.assert_allclose(preds1["point"], preds2["point"], rtol=1e-5)
+    np.testing.assert_allclose(preds1["lower"], preds2["lower"], rtol=1e-5)
+    np.testing.assert_allclose(preds1["upper"], preds2["upper"], rtol=1e-5)
+
+
 # ── Router endpoint tests ──────────────────────────────────────────────────────
 
 

@@ -888,7 +888,7 @@ def seed_database(df: pd.DataFrame, reset: bool = False) -> None:
             {
                 "id": str(sys_alert_id),
                 "org_id": str(org_id),
-                "title": "Machine Learning Pipelines Active (LightGBM & Prophet)",
+                "title": "Machine Learning Pipelines Active (LightGBM & Baselines)",
                 "desc": "Demand forecasting models updated across catalog. Average test MAPE: 7.8%.",
                 "sev": "info",
                 "created_at": now_dt,

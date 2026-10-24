@@ -3,7 +3,7 @@
  * Phase 6.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Bell,
@@ -218,20 +218,58 @@ export function AlertsPage() {
     if (unread.length) markReadMutation.mutate(unread)
   }
 
+  const [wsConnected, setWsConnected] = useState(false)
+
+  // Real-time alerts WebSocket connection
+  useEffect(() => {
+    const token = localStorage.getItem('access_token') || localStorage.getItem('token') || ''
+    if (!token) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    const wsUrl = `${protocol}//${host}/api/v1/alerts/ws?token=${encodeURIComponent(token)}`
+
+    let ws: WebSocket | null = null
+    try {
+      ws = new WebSocket(wsUrl)
+      ws.onopen = () => setWsConnected(true)
+      ws.onmessage = () => {
+        queryClient.invalidateQueries({ queryKey: ['alerts'] })
+        queryClient.invalidateQueries({ queryKey: ['anomalies'] })
+      }
+      ws.onclose = () => setWsConnected(false)
+      ws.onerror = () => setWsConnected(false)
+    } catch {
+      setWsConnected(false)
+    }
+
+    return () => {
+      if (ws) ws.close()
+    }
+  }, [queryClient])
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            <Bell className="h-6 w-6 text-primary" />
-            Alerts & Anomalies
-            {unreadCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {unreadCount}
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+              <Bell className="h-6 w-6 text-primary" />
+              Alerts & Anomalies
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </h1>
+            {wsConnected && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Stream
               </span>
             )}
-          </h1>
+          </div>
           <p className="text-muted-foreground text-sm mt-1">
             Z-Score · Isolation Forest · Data Quality detectors
           </p>

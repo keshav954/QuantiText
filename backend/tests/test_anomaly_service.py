@@ -5,6 +5,7 @@ Tests for anomaly detection service — unit tests for pure detector functions.
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from app.services.anomaly_service import _detect_data_quality, _detect_zscore
 
@@ -120,3 +121,82 @@ def test_data_quality_severity_scales():
         max_short = max(a["severity_score"] for a in a_short)
         max_long = max(a["severity_score"] for a in a_long)
         assert max_long >= max_short
+
+
+def test_closed_loop_diagnose_root_cause():
+    """Verify root cause diagnosis across anomaly types."""
+    from app.services.closed_loop_service import diagnose_root_cause
+
+    rc_drop = diagnose_root_cause("revenue_drop", "zscore", 0.9, {"pct_change": "-85%"})
+    assert "-85%" in rc_drop or "contraction" in rc_drop.lower()
+
+    rc_zero = diagnose_root_cause("zero_sales", "data_quality", 0.7, {"streak_days": 5})
+    assert "5" in rc_zero
+
+    rc_custom = diagnose_root_cause(
+        "inventory_critical", "zscore", 0.85, {"cause": "Supplier component halt"}
+    )
+    assert rc_custom == "Supplier component halt"
+
+
+@pytest.mark.asyncio
+async def test_closed_loop_pipeline_mocked():
+    """Test full closed-loop generation: anomaly -> root cause -> forecast impact -> recommendation."""
+    import uuid
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.closed_loop_service import generate_recommendation_for_anomaly
+
+    db = AsyncMock()
+    org_id = uuid.uuid4()
+    anom_id = uuid.uuid4()
+    prod_id = uuid.uuid4()
+
+    mock_anom = {
+        "id": anom_id,
+        "product_id": prod_id,
+        "anomaly_type": "inventory_critical",
+        "detector": "zscore",
+        "severity_score": 0.85,
+        "estimated_impact": -1500.0,
+        "details": {"cause": "Rapid stock depletion"},
+    }
+
+    anom_result = MagicMock()
+    anom_result.mappings = MagicMock(
+        return_value=MagicMock(first=MagicMock(return_value=mock_anom))
+    )
+
+    existing_result = MagicMock()
+    existing_result.scalar = MagicMock(return_value=None)
+
+    prod_inv = {
+        "id": prod_id,
+        "sku": "SKU-999",
+        "name": "High Velocity Widget",
+        "unit_price": 45.0,
+        "stock_on_hand": 8,
+        "reorder_point": 50,
+        "safety_stock": 20,
+        "lead_time_days": 7,
+    }
+    prod_result = MagicMock()
+    prod_result.mappings = MagicMock(return_value=MagicMock(first=MagicMock(return_value=prod_inv)))
+
+    sales_result = MagicMock()
+    sales_result.scalar = MagicMock(return_value=12.0)
+
+    db.execute.side_effect = [
+        anom_result,
+        existing_result,
+        prod_result,
+        sales_result,
+        MagicMock(),  # INSERT recommendation
+    ]
+
+    rec = await generate_recommendation_for_anomaly(db, org_id=org_id, anomaly_id=anom_id)
+    assert rec is not None
+    assert rec["action_type"] == "reorder"
+    assert "Rapid stock depletion" in rec["root_cause"]
+    assert "stockout" in rec["forecast_impact"].lower()
+    assert rec["parameters"]["suggested_qty"] > 0

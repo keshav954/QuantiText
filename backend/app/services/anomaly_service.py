@@ -81,11 +81,22 @@ async def run_detection(
         if aid:
             new_anomaly_count += 1
 
+    # Run closed-loop pipeline for severe anomalies (anomaly -> root cause -> forecast impact -> recommendation)
+    recs_created = 0
+    try:
+        from app.services import closed_loop_service
+
+        loop_res = await closed_loop_service.process_closed_loop_for_org(db, org_id=org_id)
+        recs_created = loop_res.get("recommendations_created", 0)
+    except Exception:
+        log.warning("Closed loop recommendation processing skipped", exc_info=True)
+
     await db.commit()
 
     return {
         "new_anomalies": new_anomaly_count,
         "new_alerts": new_alert_count,
+        "recommendations_created": recs_created,
         "period_checked": f"{start_date} to {end_date}",
     }
 

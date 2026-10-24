@@ -104,39 +104,46 @@ backend/app/
 
 - **Backend**: Python 3.11, FastAPI, SQLAlchemy 2, Alembic, Pydantic v2
 - **Database**: PostgreSQL 16, Redis 7
-- **ML**: pandas, scikit-learn, statsmodels, Prophet, LightGBM, SHAP, MLflow
+- **ML**: pandas, numpy, scikit-learn, LightGBM, SHAP, MLflow
 - **GenAI**: Gemini via LangChain (behind `LLMProvider` interface)
 - **Frontend**: React + Vite + TypeScript, Tailwind, shadcn/ui, Recharts
 - **Infra**: Docker Compose, NGINX reverse proxy, GitHub Actions CI
 
-## Features (Phase Status)
+## Features & Implementation Status
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 0 | Scaffold & DevOps | ✅ Complete |
-| 1 | Database & ETL | ✅ Complete |
-| 2 | Auth / RBAC / KPI | ✅ Complete |
-| 3 | Frontend Dashboard | ✅ Complete |
-| 4 | Forecasting Pipeline | ✅ Complete |
-| 5 | Inventory Intelligence | ✅ Complete |
-| 6 | Anomaly Detection | ✅ Complete |
-| 7 | AI Copilot (NL2SQL) | ✅ Complete |
-| 8 | Reports & Approvals | ✅ Complete |
-| 9 | BYOD Data Onboarding | ✅ Complete |
-| 10 | Evaluation Chapter | ✅ Complete |
-| 11 | Hardening & Deploy | ✅ Complete |
+| Feature / Subsystem | Status | Details |
+|---------------------|--------|---------|
+| **Scaffold & DevOps** | Done | Docker Compose, multi-stage non-root Dockerfile with dev arg, CI workflow |
+| **Database & Migrations** | Done | PostgreSQL 16, Alembic migrations (0001–0004), read-only role permissions |
+| **Auth & RBAC** | Done | JWT bearer authentication, 60m expiry, bcrypt hashing, password change, robust key validation |
+| **Audit Logging** | Done | Audit trails on auth, kpi, inventory, anomalies, forecasting, copilot, and reports |
+| **Frontend Dashboard** | Done | React + Vite + TypeScript, KPI tracking, Recharts, dark mode, alert feed, copilot chat |
+| **Forecasting Pipeline** | Done | LightGBM lag/rolling regression with baseline models, walk-forward leakage tests, metrics |
+| **Inventory Intelligence** | Done | Dynamic reorder points, safety stock, what-if simulation, ReportLab PDF purchase orders |
+| **Anomaly Detection** | Done | Ensemble Z-Score + Isolation Forest, alert thresholds, authenticated `/alerts/ws` stream |
+| **Closed-Loop Decision Engine** | Done | Anomaly → root cause → forecast impact → recommendation → human approval → logged outcome |
+| **AI Copilot (NL2SQL)** | Done | AST table subquery org scoping (`scope_to_org`), function allowlist, repair loop with `rollback()` |
+| **Report Generation** | Done | Executive and operational PDF reports generated via ReportLab |
+| **BYOD Data Onboarding** | Done | Multi-tenant CSV upload, schema mapping, and validation |
+| **Copilot Message Feedback** | Done | Interactive Thumbs-Up / Thumbs-Down feedback buttons on copilot responses |
+| **pgvector Few-Shot Retrieval** | Partial | Fallback & schema few-shot examples in place; dedicated pgvector embedding index planned |
+| **Weekly Scheduled Report Cron** | Partial | Core service method and schema ready; standing daemon requires production beat worker |
+| **DOCX Report Export** | Not built | High-fidelity PDF export implemented via ReportLab; DOCX export omitted |
 
 ## Evaluation Results (Synthetic Data)
 
-| Module | Metric | Value |
-|--------|--------|-------|
-| Anomaly (combined) | F1 | 0.727 |
-| Anomaly (z-score) | Precision | 1.000 |
-| Inventory (optimized) | Cost Reduction | 93.0% |
-| Inventory (optimized) | Stockout Reduction | 99.9% |
-| NL2SQL | Gold Set Size | 50 questions |
+| Module / Pipeline | Metric | Value | Source Evaluation Script |
+|-------------------|--------|-------|--------------------------|
+| **Anomaly Detection (combined)** | F1 Score | 0.727 | `docs/eval/eval_anomaly.py` |
+| **Anomaly Detection (z-score)** | Precision | 1.000 | `docs/eval/eval_anomaly.py` |
+| **Anomaly Detection (isolation forest)** | Recall | 0.647 | `docs/eval/eval_anomaly.py` |
+| **Inventory Policy Optimization** | Cost Reduction | 93.0%* | `docs/eval/eval_inventory.py` |
+| **Inventory Policy Optimization** | Stockout Reduction | 99.9% | `docs/eval/eval_inventory.py` |
+| **NL2SQL Semantic Accuracy** | Gold Set Exec Accuracy | 100.0% (50/50) | `docs/eval/eval_nl2sql.py --live` |
+| **NL2SQL Tenant Security** | Org Scoping Enforcement | 100.0% (50/50) | `docs/eval/eval_nl2sql.py --live` |
+| **NL2SQL Robustness** | Penetration Vectors Blocked | 5/5 Bypass Tests | `backend/tests/test_copilot_service.py` |
 
-> All numbers from `docs/eval/` scripts. Never fabricated.
+> \* **Caveat on Inventory Results**: The 93.0% cost reduction was evaluated on synthetic benchmark distributions assuming a severe stockout penalty (£150/unit) against an unoptimized static reorder-point baseline. In real deployment settings with moderate margin loss or different holding-to-stockout ratios, the observed cost reduction will depend on company-specific penalty parameters. All reported evaluation numbers originate directly from scripts in `backend/ml/` or `docs/eval/`. Never fabricated.
 
 ## Data Disclaimer
 

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # ── Auth / JWT ───────────────────────────────────────
     SECRET_KEY: str = _DEFAULT_SECRET
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
     ALGORITHM: str = "HS256"
 
     # ── LLM Provider ─────────────────────────────────────
@@ -84,13 +84,33 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+_INSECURE_SECRET_SUBSTRINGS = (
+    "generate",
+    "change",
+    "set_strong",
+    "placeholder",
+    "secret",
+    "default",
+    "quantitext",
+)
+
+
 def validate_production_settings() -> None:
     """
-    Called at startup. Refuses to boot in production with insecure defaults.
+    Called at startup. Refuses to boot in production with insecure defaults or placeholders.
+    Rejects keys shorter than 32 characters or containing placeholder words.
     """
-    if not settings.DEBUG and settings.SECRET_KEY == _DEFAULT_SECRET:
-        log.critical(
-            "FATAL: SECRET_KEY is still the default placeholder. "
-            "Set a strong random secret before running with DEBUG=false."
-        )
-        sys.exit(1)
+    if not settings.DEBUG:
+        key = settings.SECRET_KEY.lower().strip()
+        if (
+            len(settings.SECRET_KEY) < 32
+            or settings.SECRET_KEY == _DEFAULT_SECRET
+            or any(sub in key for sub in _INSECURE_SECRET_SUBSTRINGS)
+        ):
+            log.critical(
+                "FATAL: Insecure SECRET_KEY detected in production environment. "
+                "SECRET_KEY must be at least 32 characters long and cannot be a placeholder "
+                "(rejected if shorter than 32 characters or contains 'generate', 'change', 'set_strong'). "
+                "Generate a cryptographically secure key with: openssl rand -hex 32"
+            )
+            sys.exit(1)

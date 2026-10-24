@@ -106,18 +106,100 @@ ALLOWED_TABLES: set[str] = {
     "anomalies",
 }
 
-BLOCKED_FUNCTIONS: set[str] = {
-    "pg_sleep",
-    "pg_read_file",
-    "pg_write_file",
-    "pg_read_binary_file",
-    "query_to_xml",
-    "dblink",
-    "eval",
-    "current_setting",
-    "set_config",
-    "version",
+ALLOWED_FUNCTIONS: set[str] = {
+    # Aggregates
+    "sum",
+    "count",
+    "avg",
+    "min",
+    "max",
+    "stddev",
+    "stddev_samp",
+    "stddev_pop",
+    "variance",
+    # Math & rounding
+    "round",
+    "ceil",
+    "ceiling",
+    "floor",
+    "abs",
+    "sign",
+    "power",
+    "sqrt",
+    "mod",
+    # String functions
+    "lower",
+    "upper",
+    "trim",
+    "ltrim",
+    "rtrim",
+    "length",
+    "substring",
+    "substr",
+    "concat",
+    "concat_ws",
+    "replace",
+    "left",
+    "right",
+    # Date/Time functions
+    "date_trunc",
+    "timestamptrunc",
+    "timestamp_trunc",
+    "extract",
+    "date_part",
+    "to_char",
+    "to_date",
+    "to_timestamp",
+    "now",
+    "current_date",
+    "current_timestamp",
+    "current_time",
+    "age",
+    # Conditional / Null handling / Cast
+    "coalesce",
+    "nullif",
+    "greatest",
+    "least",
+    "cast",
+    "try_cast",
 }
+
+
+def _is_function_allowed(func: exp.Func | exp.Anonymous) -> bool:
+    """Verify function name or SQL expression against ALLOWED_FUNCTIONS."""
+    names = set()
+    if hasattr(func, "name") and func.name:
+        names.add(func.name.lower())
+    if hasattr(func, "key") and func.key:
+        names.add(func.key.lower())
+    if hasattr(func, "sql_name") and func.sql_name():
+        names.add(func.sql_name().lower())
+    return any(n in ALLOWED_FUNCTIONS for n in names)
+
+
+def scope_to_org(expression: exp.Expression, org_id: str) -> exp.Expression:
+    """
+    Wrap every accessed table in an org-scoped subquery:
+    (SELECT * FROM table WHERE org_id = '<org_id>') AS alias
+    This guarantees that user-provided WHERE conditions (e.g. OR 1=1 or cross-tenant filters)
+    cannot widen access or access another tenant's rows.
+    """
+    ctes = {c.alias_or_name.lower() for c in expression.find_all(exp.CTE) if c.alias_or_name}
+
+    def _t(node: exp.Expression) -> exp.Expression:
+        if (
+            isinstance(node, exp.Table)
+            and node.name.lower() in ALLOWED_TABLES
+            and node.name.lower() not in ctes
+        ):
+            alias = node.alias or node.name
+            inner = sqlglot.parse_one(
+                f"SELECT * FROM {node.name} WHERE org_id = '{org_id}'", read="postgres"
+            )
+            return exp.Subquery(this=inner, alias=exp.TableAlias(this=exp.to_identifier(alias)))
+        return node
+
+    return expression.transform(_t)
 
 
 _DANGEROUS = re.compile(
@@ -176,8 +258,8 @@ def validate_and_secure_sql(sql: str, org_id: str) -> str:
     1. Extract SQL from markdown or conversational fences.
     2. Enforce only SELECT statements.
     3. Allowlist tables/views strictly to safe BI views and tables (customer PII excluded).
-    4. Block malicious function calls (pg_sleep, filesystem access, etc.).
-    5. Enforce tenant isolation by verifying or injecting org_id in the WHERE clause.
+    4. Allowlist function calls (only safe analytical functions allowed).
+    5. Enforce tenant isolation by wrapping every table in an org-scoped subquery.
     """
     # 1. Clean and extract SQL
     cleaned = _extract_sql_from_text(sql)
@@ -214,30 +296,29 @@ def validate_and_secure_sql(sql: str, org_id: str) -> str:
                 f"Allowed views and tables: {', '.join(sorted(ALLOWED_TABLES))}."
             )
 
-    # 5. Block dangerous functions
+    # 5. Check functions against allowlist
     for func in expression.find_all((exp.Func, exp.Anonymous)):
-        fname = (func.name if hasattr(func, "name") and func.name else func.key or "").lower()
-        if fname in BLOCKED_FUNCTIONS:
-            raise ValueError(f"Function call '{fname}()' is blocked for security reasons.")
+        if isinstance(func, (exp.Connector, exp.Binary, exp.Between, exp.In)):
+            continue
+        if not _is_function_allowed(func):
+            fname = (
+                func.name
+                if hasattr(func, "name") and func.name
+                else (
+                    func.sql_name()
+                    if hasattr(func, "sql_name") and func.sql_name()
+                    else func.key or ""
+                )
+            )
+            raise ValueError(f"Function call '{fname}()' is not permitted for security reasons.")
 
-    # 6. Tenant isolation: replace placeholders and ensure org_id filter
+    # 6. Tenant isolation: replace any literal <org_id> placeholders and scope tables
     sql_str = expression.sql("postgres")
     sql_str = sql_str.replace("'<org_id>'", f"'{org_id}'").replace("<org_id>", f"'{org_id}'")
-
     reparsed = sqlglot.parse_one(sql_str, read="postgres")
-    has_org_filter = False
-    for eq in reparsed.find_all(exp.EQ):
-        left_col = eq.left.name if isinstance(eq.left, exp.Column) else ""
-        right_col = eq.right.name if isinstance(eq.right, exp.Column) else ""
-        if left_col.lower() == "org_id" or right_col.lower() == "org_id":
-            has_org_filter = True
-            break
 
-    # If the LLM omitted org_id from the WHERE clause, inject it automatically
-    if not has_org_filter and tables:
-        reparsed = reparsed.where(f"org_id = '{org_id}'")
-
-    return reparsed.sql("postgres")
+    scoped = scope_to_org(reparsed, org_id)
+    return scoped.sql("postgres")
 
 
 def _inject_org_id(sql: str, org_id: str) -> str:
@@ -410,6 +491,7 @@ async def chat(
                     )
                 sql = None
         except Exception as e:
+            await readonly_db.rollback()
             last_error = f"Execution error: {e}"
             log.warning("SQL execution attempt %d failed: %s", current_attempt, e)
             current_attempt += 1

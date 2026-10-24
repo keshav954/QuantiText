@@ -37,7 +37,48 @@ def test_validate_and_secure_sql_blocks_unauthorized_table():
 
 def test_validate_and_secure_sql_blocks_functions():
     sql = "SELECT pg_sleep(5) FROM v_kpi_daily WHERE org_id = '<org_id>'"
-    with pytest.raises(ValueError, match="blocked"):
+    with pytest.raises(ValueError, match="not permitted"):
+        validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+
+
+def test_tenant_isolation_cannot_read_another_org():
+    """WHERE org_id = '<another>' must still be bounded to the requester's org."""
+    my_org = "11111111-1111-1111-1111-111111111111"
+    other_org = "22222222-2222-2222-2222-222222222222"
+    sql = f"SELECT * FROM daily_sales WHERE org_id = '{other_org}'"
+    secured = validate_and_secure_sql(sql, my_org)
+    assert f"SELECT * FROM daily_sales WHERE org_id = '{my_org}'" in secured
+
+
+def test_tenant_isolation_org_id_tautology():
+    """WHERE org_id = org_id must still be bounded to the requester's org."""
+    my_org = "11111111-1111-1111-1111-111111111111"
+    sql = "SELECT * FROM daily_sales WHERE org_id = org_id"
+    secured = validate_and_secure_sql(sql, my_org)
+    assert f"SELECT * FROM daily_sales WHERE org_id = '{my_org}'" in secured
+
+
+def test_tenant_isolation_or_1_equals_1():
+    """WHERE org_id = '<mine>' OR 1=1 must not widen access beyond requester's org."""
+    my_org = "11111111-1111-1111-1111-111111111111"
+    sql = f"SELECT * FROM daily_sales WHERE org_id = '{my_org}' OR 1=1"
+    secured = validate_and_secure_sql(sql, my_org)
+    assert f"SELECT * FROM daily_sales WHERE org_id = '{my_org}'" in secured
+
+
+def test_tenant_isolation_subquery_without_filter():
+    """Subquery SELECT (SELECT SUM(revenue) FROM daily_sales) must have daily_sales scoped."""
+    my_org = "11111111-1111-1111-1111-111111111111"
+    sql = "SELECT (SELECT SUM(revenue) FROM daily_sales) AS total FROM products"
+    secured = validate_and_secure_sql(sql, my_org)
+    assert f"SELECT * FROM daily_sales WHERE org_id = '{my_org}'" in secured
+    assert f"SELECT * FROM products WHERE org_id = '{my_org}'" in secured
+
+
+def test_validate_and_secure_sql_blocks_pg_ls_dir():
+    """SELECT pg_ls_dir('/') must be blocked by the function allowlist."""
+    sql = "SELECT pg_ls_dir('/')"
+    with pytest.raises(ValueError, match="not permitted"):
         validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
 
 

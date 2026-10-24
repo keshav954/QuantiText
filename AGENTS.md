@@ -8,7 +8,7 @@ anomaly -> root cause -> forecast impact -> recommended action -> human approval
 ## Stack (do not swap without asking)
 - Backend: Python 3.11, FastAPI, SQLAlchemy 2, Alembic, Pydantic v2, pytest
 - DB: PostgreSQL 16 (+ pgvector later), Redis for cache and jobs
-- ML: pandas, numpy, scikit-learn, statsmodels, prophet, lightgbm, shap, mlflow
+- ML: pandas, numpy, scikit-learn, lightgbm, shap, mlflow
 - GenAI: Gemini via LangChain, behind a provider interface (`LLMProvider`) so models can be swapped
 - Frontend: React + Vite + TypeScript, Tailwind, shadcn/ui, Recharts, TanStack Query
 - Infra: Docker Compose for local, GitHub Actions for CI

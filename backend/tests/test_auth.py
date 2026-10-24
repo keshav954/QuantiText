@@ -163,3 +163,44 @@ async def test_change_password_wrong_current(async_client):
         assert response.status_code == 403
     finally:
         _test_app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_validate_production_settings_rejects_insecure_keys():
+    """validate_production_settings must exit if DEBUG=False and key is weak or placeholder."""
+    from app.core.config import settings, validate_production_settings
+
+    # 1. Too short
+    with (
+        patch.object(settings, "DEBUG", False),
+        patch.object(settings, "SECRET_KEY", "short-key-123"),
+    ):
+        with pytest.raises(SystemExit) as exc:
+            validate_production_settings()
+        assert exc.value.code == 1
+
+    # 2. Contains placeholder word 'generate'
+    with (
+        patch.object(settings, "DEBUG", False),
+        patch.object(settings, "SECRET_KEY", "generate_with_openssl_rand_hex_32_extra_padding"),
+    ):
+        with pytest.raises(SystemExit) as exc:
+            validate_production_settings()
+        assert exc.value.code == 1
+
+    # 3. Contains placeholder word 'set_strong'
+    with (
+        patch.object(settings, "DEBUG", False),
+        patch.object(settings, "SECRET_KEY", "set_strong_production_postgres_password_key"),
+    ):
+        with pytest.raises(SystemExit) as exc:
+            validate_production_settings()
+        assert exc.value.code == 1
+
+    # 4. In DEBUG=True mode, weak key does not exit
+    with patch.object(settings, "DEBUG", True), patch.object(settings, "SECRET_KEY", "short"):
+        validate_production_settings()  # should not raise
+
+    # 5. Strong key in DEBUG=False passes cleanly
+    strong_key = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    with patch.object(settings, "DEBUG", False), patch.object(settings, "SECRET_KEY", strong_key):
+        validate_production_settings()  # should not raise

@@ -28,6 +28,8 @@ import {
   Table,
   BarChart2,
   Plus,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react'
 import { type QueryResult } from '@/api/copilot'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
@@ -159,6 +161,7 @@ function MessageBubble({
   onFollowUp: (q: string) => void
 }) {
   const [showSql, setShowSql] = useState(false)
+  const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null)
   const isUser = message.role === 'user'
 
   return (
@@ -241,9 +244,37 @@ function MessageBubble({
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground px-1">
-          {message.timestamp.toLocaleTimeString('en-GB', { timeStyle: 'short' })}
-        </p>
+        <div className="flex items-center justify-between w-full px-1">
+          <p className="text-xs text-muted-foreground">
+            {message.timestamp.toLocaleTimeString('en-GB', { timeStyle: 'short' })}
+          </p>
+          {!isUser && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setFeedback((prev) => (prev === 'positive' ? null : 'positive'))}
+                className={`p-1 rounded-md hover:bg-muted transition-colors ${
+                  feedback === 'positive' ? 'text-emerald-400 bg-emerald-400/10' : 'text-muted-foreground/60 hover:text-muted-foreground'
+                }`}
+                title="Helpful response"
+                aria-label="Thumbs up"
+              >
+                <ThumbsUp className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setFeedback((prev) => (prev === 'negative' ? null : 'negative'))}
+                className={`p-1 rounded-md hover:bg-muted transition-colors ${
+                  feedback === 'negative' ? 'text-rose-400 bg-rose-400/10' : 'text-muted-foreground/60 hover:text-muted-foreground'
+                }`}
+                title="Not helpful"
+                aria-label="Thumbs down"
+              >
+                <ThumbsDown className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {isUser && (

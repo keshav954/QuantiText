@@ -27,7 +27,7 @@ graph TB
     end
 
     subgraph "ML Pipeline"
-        ML["Forecasting<br/>Prophet + LightGBM"]
+        ML["Forecasting<br/>LightGBM + Baselines"]
         AD["Anomaly Detection<br/>Z-score + IForest"]
     end
 

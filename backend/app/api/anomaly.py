@@ -69,6 +69,40 @@ async def trigger_detection(
     return DetectionRunResult(**result)
 
 
+@router.post(
+    "/anomaly/closed-loop",
+    dependencies=[Depends(require_role("manager"))],
+)
+async def trigger_closed_loop(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Execute closed-loop pipeline for unresolved anomalies:
+    anomaly -> root cause -> forecast impact -> recommendation.
+    """
+    from app.services import closed_loop_service
+
+    result = await closed_loop_service.process_closed_loop_for_org(
+        db, org_id=current_user.org_id, limit=limit
+    )
+    await log_audit(
+        db,
+        action="trigger_closed_loop",
+        resource="anomaly",
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={
+            "anomalies_evaluated": result["anomalies_evaluated"],
+            "recommendations_created": result["recommendations_created"],
+        },
+        ip_address=get_client_ip(request),
+    )
+    return result
+
+
 # ── Anomalies ──────────────────────────────────────────────────────────────────
 
 
@@ -181,12 +215,27 @@ async def mark_alerts_read(
 
 
 @router.websocket("/alerts/ws")
-async def alerts_websocket(websocket: WebSocket) -> None:
-    """Real-time alerts WebSocket connection."""
+async def alerts_websocket(websocket: WebSocket, token: str | None = Query(None)) -> None:
+    """Real-time alerts WebSocket connection with token authentication."""
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    from app.core.security import decode_access_token
+
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     try:
         await websocket.send_json(
-            {"type": "connected", "message": "QuantiText real-time alerts stream connected"}
+            {
+                "type": "connected",
+                "org_id": payload.get("org_id"),
+                "message": "QuantiText real-time alerts stream connected",
+            }
         )
         while True:
             data = await websocket.receive_text()

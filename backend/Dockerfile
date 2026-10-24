@@ -1,6 +1,8 @@
 # ── Stage 1: Build dependencies ────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
 
+ARG INSTALL_DEV=false
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -12,7 +14,11 @@ RUN apt-get update && \
 
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --prefix=/install ".[ml,llm]"
+    if [ "$INSTALL_DEV" = "true" ]; then \
+        pip install --no-cache-dir --prefix=/install ".[ml,llm,dev]"; \
+    else \
+        pip install --no-cache-dir --prefix=/install ".[ml,llm]"; \
+    fi
 
 # ── Stage 2: Production runtime ───────────────────────────────────────────────
 FROM python:3.11-slim

@@ -5,7 +5,7 @@ Pipeline:
 1. Aggregate KPIs, trends, forecasts, inventory flags, anomalies into one JSON.
 2. LLM writes a narrative from that JSON only (grounding check).
 3. Persist the report to the `reports` table.
-4. Export as PDF (or plain text if weasyprint is not available).
+4. Export as PDF via ReportLab (or plain text fallback).
 
 Data is SYNTHETIC unless stated otherwise.
 """

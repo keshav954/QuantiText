@@ -62,4 +62,5 @@ class DetectionRunResult(BaseModel):
 
     new_anomalies: int
     new_alerts: int
+    recommendations_created: int = 0
     period_checked: str
