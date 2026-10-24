@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Package,
   BarChart3,
+  Activity,
 } from 'lucide-react'
 import {
   useReports,
@@ -420,6 +421,17 @@ function RecommendationCard({
     rejected: 'bg-critical/20 text-critical',
   }
 
+  interface OutcomeTracking {
+    status: string
+    baseline_demand?: number
+    actual_sales_qty?: number
+    variance_pct?: number
+    lead_time_days?: number
+    notes?: string
+  }
+
+  const outcome = (rec.parameters as { outcome?: OutcomeTracking } | null)?.outcome
+
   return (
     <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
       <div className="flex items-start gap-3">
@@ -444,6 +456,69 @@ function RecommendationCard({
           <p className="text-xs text-muted-foreground mt-1">
             {format(new Date(rec.created_at), 'MMM dd, yyyy HH:mm')}
           </p>
+
+          {/* Outcome & Variance Tracking Section */}
+          {outcome && (
+            <div className="mt-3 rounded-lg border border-border/70 bg-secondary/40 p-3 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 text-primary" />
+                  Outcome & Variance Tracking
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                    outcome.status === 'evaluated'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : outcome.status === 'insufficient_data'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-primary/20 text-primary'
+                  }`}
+                >
+                  {outcome.status}
+                </span>
+              </div>
+              {outcome.status === 'evaluated' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                  <div>
+                    <span className="text-muted-foreground block">Baseline Demand</span>
+                    <span className="font-medium text-foreground">
+                      {outcome.baseline_demand ?? 'N/A'} units/day
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Actual Realized</span>
+                    <span className="font-medium text-foreground">
+                      {outcome.actual_sales_qty ?? 'N/A'} units
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Variance</span>
+                    <span
+                      className={`font-semibold ${
+                        (outcome.variance_pct ?? 0) >= 0
+                          ? 'text-emerald-400'
+                          : 'text-critical'
+                      }`}
+                    >
+                      {(outcome.variance_pct ?? 0) >= 0 ? '+' : ''}
+                      {outcome.variance_pct}%
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Lead Time Window</span>
+                    <span className="font-medium text-foreground">
+                      {outcome.lead_time_days} days
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-[11px]">
+                  {outcome.notes ??
+                    'Awaiting elapsed lead-time window for post-implementation evaluation.'}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         {rec.status === 'pending' && (
           <div className="flex gap-2 shrink-0">

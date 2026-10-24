@@ -348,6 +348,19 @@ async def decide_recommendation(
             "decided_at": now,
         },
     )
+    if action == "approve" and result.rowcount > 0:
+        try:
+            from app.services import closed_loop_service
+
+            await closed_loop_service.record_approval_outcome(
+                db,
+                org_id=org_id,
+                recommendation_id=recommendation_id,
+                user_id=user_id,
+            )
+        except Exception:
+            pass
+
     await db.commit()
     return result.rowcount > 0
 

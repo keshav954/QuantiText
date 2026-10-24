@@ -31,7 +31,7 @@ export function useCopilotChat() {
     onSuccess: (data: ChatResponse) => {
       setSessionId(data.session_id)
       const assistantMsg: Message = {
-        id: crypto.randomUUID(),
+        id: data.message_id || crypto.randomUUID(),
         role: 'assistant',
         content: data.answer,
         timestamp: new Date(),

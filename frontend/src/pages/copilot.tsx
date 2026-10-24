@@ -31,7 +31,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from 'lucide-react'
-import { type QueryResult } from '@/api/copilot'
+import { type QueryResult, sendFeedback } from '@/api/copilot'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useCopilotChat, type Message } from '@/hooks/use-copilot-chat'
 
@@ -252,7 +252,13 @@ function MessageBubble({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setFeedback((prev) => (prev === 'positive' ? null : 'positive'))}
+                onClick={() => {
+                  const next = feedback === 'positive' ? null : 'positive'
+                  setFeedback(next)
+                  if (next && message.id) {
+                    sendFeedback(message.id, 'up').catch(() => {})
+                  }
+                }}
                 className={`p-1 rounded-md hover:bg-muted transition-colors ${
                   feedback === 'positive' ? 'text-emerald-400 bg-emerald-400/10' : 'text-muted-foreground/60 hover:text-muted-foreground'
                 }`}
@@ -263,7 +269,13 @@ function MessageBubble({
               </button>
               <button
                 type="button"
-                onClick={() => setFeedback((prev) => (prev === 'negative' ? null : 'negative'))}
+                onClick={() => {
+                  const next = feedback === 'negative' ? null : 'negative'
+                  setFeedback(next)
+                  if (next && message.id) {
+                    sendFeedback(message.id, 'down').catch(() => {})
+                  }
+                }}
                 className={`p-1 rounded-md hover:bg-muted transition-colors ${
                   feedback === 'negative' ? 'text-rose-400 bg-rose-400/10' : 'text-muted-foreground/60 hover:text-muted-foreground'
                 }`}

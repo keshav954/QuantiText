@@ -214,9 +214,45 @@ async def mark_alerts_read(
     return {"marked_read": count}
 
 
+class AlertConnectionManager:
+    """Manages active WebSocket connections subscribed to real-time alerts per org."""
+
+    def __init__(self) -> None:
+        self._connections: dict[str, set[WebSocket]] = {}
+
+    async def connect(self, org_id: str, websocket: WebSocket) -> None:
+        await websocket.accept()
+        if org_id not in self._connections:
+            self._connections[org_id] = set()
+        self._connections[org_id].add(websocket)
+
+    def disconnect(self, org_id: str, websocket: WebSocket) -> None:
+        if org_id in self._connections:
+            self._connections[org_id].discard(websocket)
+            if not self._connections[org_id]:
+                del self._connections[org_id]
+
+    async def broadcast_to_org(self, org_id: str, message: dict) -> int:
+        conns = self._connections.get(str(org_id), set())
+        sent = 0
+        dead = set()
+        for ws in list(conns):
+            try:
+                await ws.send_json(message)
+                sent += 1
+            except Exception:
+                dead.add(ws)
+        for ws in dead:
+            self.disconnect(str(org_id), ws)
+        return sent
+
+
+ws_manager = AlertConnectionManager()
+
+
 @router.websocket("/alerts/ws")
 async def alerts_websocket(websocket: WebSocket, token: str | None = Query(None)) -> None:
-    """Real-time alerts WebSocket connection with token authentication."""
+    """Real-time alerts WebSocket connection with token authentication and org scoping."""
     if not token:
         await websocket.close(code=1008)
         return
@@ -228,12 +264,17 @@ async def alerts_websocket(websocket: WebSocket, token: str | None = Query(None)
         await websocket.close(code=1008)
         return
 
-    await websocket.accept()
+    org_id = str(payload.get("org") or payload.get("org_id") or "")
+    if not org_id:
+        await websocket.close(code=1008)
+        return
+
+    await ws_manager.connect(org_id, websocket)
     try:
         await websocket.send_json(
             {
                 "type": "connected",
-                "org_id": payload.get("org_id"),
+                "org_id": org_id,
                 "message": "QuantiText real-time alerts stream connected",
             }
         )
@@ -243,3 +284,5 @@ async def alerts_websocket(websocket: WebSocket, token: str | None = Query(None)
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         pass
+    finally:
+        ws_manager.disconnect(org_id, websocket)

@@ -14,6 +14,7 @@ export interface QueryResult {
 
 export interface ChatResponse {
   session_id: string
+  message_id?: string | null
   question: string
   answer: string
   sql: string | null
@@ -52,4 +53,16 @@ export function fetchSessions(limit = 20): Promise<ChatSession[]> {
 
 export function fetchSessionMessages(sessionId: string): Promise<ChatMessageItem[]> {
   return apiFetch(`/copilot/sessions/${sessionId}`)
+}
+
+export function sendFeedback(
+  messageId: string,
+  rating: 'up' | 'down',
+  comment?: string,
+): Promise<{ status: string }> {
+  return apiFetch(`/copilot/messages/${messageId}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating, comment }),
+  })
 }

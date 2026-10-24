@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import uuid
+from datetime import UTC, datetime
 
 import sqlglot
 from sqlalchemy import text
@@ -385,9 +386,10 @@ async def chat(
             "Which 5 products have the highest revenue?",
             "Which products are low on stock?",
         ]
-        await _save_messages(db, session_id, question, answer, None, None)
+        msg_id = await _save_messages(db, session_id, question, answer, None, None)
         return {
             "session_id": session_id,
+            "message_id": msg_id,
             "question": question,
             "answer": answer,
             "sql": None,
@@ -514,10 +516,11 @@ async def chat(
     follow_ups = _generate_follow_ups(question, query_result)
 
     # 7. Persist messages
-    await _save_messages(db, session_id, question, answer, sql, query_result)
+    msg_id = await _save_messages(db, session_id, question, answer, sql, query_result)
 
     return {
         "session_id": session_id,
+        "message_id": msg_id,
         "question": question,
         "answer": answer,
         "sql": sql,
@@ -567,7 +570,7 @@ async def get_session_messages(
     """Load message history for a session."""
     result = await db.execute(
         text("""
-            SELECT role, content, created_at
+            SELECT id, role, content, created_at
             FROM chat_messages
             WHERE session_id = :session_id
               AND org_id = :org_id
@@ -578,8 +581,58 @@ async def get_session_messages(
     )
     rows = result.mappings().all()
     return [
-        {"role": r["role"], "content": r["content"], "timestamp": r["created_at"]} for r in rows
+        {
+            "id": r["id"],
+            "role": r["role"],
+            "content": r["content"],
+            "timestamp": r["created_at"],
+        }
+        for r in rows
     ]
+
+
+async def record_message_feedback(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    message_id: uuid.UUID,
+    rating: str,
+    comment: str | None = None,
+) -> bool:
+    """Persist thumbs-up / thumbs-down rating and optional comment into message metadata."""
+    res = await db.execute(
+        text("""
+            SELECT id, metadata FROM chat_messages
+            WHERE id = :id AND org_id = :org_id
+        """),
+        {"id": str(message_id), "org_id": str(org_id)},
+    )
+    row = res.mappings().first()
+    if not row:
+        return False
+
+    meta = row["metadata"] or {}
+    if isinstance(meta, str):
+        meta = json.loads(meta)
+
+    meta["feedback"] = {
+        "rating": rating,
+        "comment": comment,
+        "user_id": str(user_id),
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+
+    await db.execute(
+        text("""
+            UPDATE chat_messages
+            SET metadata = :meta
+            WHERE id = :id AND org_id = :org_id
+        """),
+        {"id": str(message_id), "org_id": str(org_id), "meta": json.dumps(meta)},
+    )
+    await db.commit()
+    return True
 
 
 # ── Private helpers ────────────────────────────────────────────────────────────
@@ -623,7 +676,7 @@ async def _save_messages(
     answer: str,
     sql: str | None,
     result: dict | None,
-) -> None:
+) -> uuid.UUID | None:
     # Fetch org_id from session
     row = await db.execute(
         text("SELECT org_id FROM chat_sessions WHERE id = :id"),
@@ -631,7 +684,7 @@ async def _save_messages(
     )
     r = row.first()
     if not r:
-        return
+        return None
     org_id = str(r[0])
 
     # Save user message
@@ -648,22 +701,25 @@ async def _save_messages(
         },
     )
 
-    # Save assistant message (compact JSON metadata)
+    # Save assistant message with metadata
+    assistant_msg_id = uuid.uuid4()
+    meta_dict = {}
     assistant_content = answer
     if sql:
-        meta = {"sql": sql, "rows": len(result["rows"]) if result else 0}
-        assistant_content = f"{answer}\n\n<!-- meta:{json.dumps(meta)} -->"
+        meta_dict = {"sql": sql, "rows": len(result["rows"]) if result else 0}
+        assistant_content = f"{answer}\n\n<!-- meta:{json.dumps(meta_dict)} -->"
 
     await db.execute(
         text("""
-            INSERT INTO chat_messages (id, session_id, org_id, role, content)
-            VALUES (:id, :session_id, :org_id, 'assistant', :content)
+            INSERT INTO chat_messages (id, session_id, org_id, role, content, metadata)
+            VALUES (:id, :session_id, :org_id, 'assistant', :content, :metadata)
         """),
         {
-            "id": str(uuid.uuid4()),
+            "id": str(assistant_msg_id),
             "session_id": str(session_id),
             "org_id": org_id,
             "content": assistant_content,
+            "metadata": json.dumps(meta_dict) if meta_dict else None,
         },
     )
 
@@ -676,8 +732,8 @@ async def _save_messages(
         """),
         {"id": str(session_id), "title": question[:80]},
     )
-
     await db.commit()
+    return assistant_msg_id
 
 
 def _format_result_for_llm(

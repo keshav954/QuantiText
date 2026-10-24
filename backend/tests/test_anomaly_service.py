@@ -183,14 +183,20 @@ async def test_closed_loop_pipeline_mocked():
     prod_result = MagicMock()
     prod_result.mappings = MagicMock(return_value=MagicMock(first=MagicMock(return_value=prod_inv)))
 
-    sales_result = MagicMock()
-    sales_result.scalar = MagicMock(return_value=12.0)
+    forecast_result = MagicMock()
+    forecast_result.mappings = MagicMock(
+        return_value=MagicMock(
+            first=MagicMock(
+                return_value={"forecast_count": 14, "avg_pred_daily": 12.0, "total_pred_qty": 168.0}
+            )
+        )
+    )
 
     db.execute.side_effect = [
         anom_result,
         existing_result,
         prod_result,
-        sales_result,
+        forecast_result,
         MagicMock(),  # INSERT recommendation
     ]
 

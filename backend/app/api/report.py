@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_role
-from app.core.audit import log_audit
+from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
 from app.schemas.report import (
     RecommendationDecision,
@@ -143,6 +143,36 @@ async def decide_recommendation(
     )
 
     return {"status": "ok", "action": body.action, "recommendation_id": recommendation_id}
+
+
+@router.post(
+    "/recommendations/evaluate-outcomes",
+    dependencies=[Depends(require_role("analyst"))],
+)
+async def evaluate_outcomes(
+    request: Request,
+    force: bool = Query(
+        False, description="Force evaluate even if lead time window not fully elapsed"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Compare realized sales against forecast baseline after lead time and store variance."""
+    from app.services import closed_loop_service
+
+    results = await closed_loop_service.evaluate_recommendation_outcomes(
+        db, org_id=current_user.org_id, force=force
+    )
+    await log_audit(
+        db,
+        action="evaluate_outcomes",
+        resource="recommendation",
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={"evaluated_count": len(results)},
+        ip_address=get_client_ip(request),
+    )
+    return {"status": "ok", "evaluated_count": len(results), "items": results}
 
 
 @router.get(

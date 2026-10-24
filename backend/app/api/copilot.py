@@ -16,7 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db, get_readonly_db, require_role
 from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
-from app.schemas.copilot import ChatMessage, ChatRequest, ChatResponse, SessionOut
+from app.schemas.copilot import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    MessageFeedbackRequest,
+    MessageFeedbackResponse,
+    SessionOut,
+)
 from app.services import copilot_service
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
@@ -100,3 +107,49 @@ async def get_session(
         db, org_id=current_user.org_id, session_id=session_id
     )
     return [ChatMessage(**m) for m in messages]
+
+
+@router.post(
+    "/messages/{message_id}/feedback",
+    response_model=MessageFeedbackResponse,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def submit_message_feedback(
+    message_id: uuid.UUID,
+    body: MessageFeedbackRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageFeedbackResponse:
+    """Store thumbs-up / thumbs-down user feedback on a copilot response."""
+    result = await copilot_service.record_message_feedback(
+        db,
+        org_id=current_user.org_id,
+        user_id=current_user.id,
+        message_id=message_id,
+        rating=body.rating,
+        comment=body.comment,
+    )
+    if not result:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat message not found or unauthorized",
+        )
+
+    await log_audit(
+        db,
+        action="copilot_feedback",
+        resource="chat_message",
+        resource_id=str(message_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={"rating": body.rating, "has_comment": bool(body.comment)},
+        ip_address=get_client_ip(request),
+    )
+    return MessageFeedbackResponse(
+        status="ok",
+        message_id=message_id,
+        rating=body.rating,
+    )

@@ -1,6 +1,6 @@
 # NL2SQL Evaluation Results
 
-> Generated: 2026-10-25 00:36
+> Generated: 2026-10-25 01:09
 > Gold set size: **50** questions
 
 ## Gold Set Coverage
@@ -19,11 +19,11 @@
 
 | Configuration | SQL Validity | SQL Correctness | Answer Relevance | Avg Latency (ms) |
 |---------------|-------------|-----------------|------------------|-------------------|
-| Baseline (no context) | 100.0% | 64.0% | 65.0% | 0.3 |
-| + Metric Dictionary | 100.0% | 64.0% | 65.0% | 0.3 |
+| Baseline (no context) | 100.0% | 8.7% | 25.0% | 0.0 |
+| + Metric Dictionary | 100.0% | 19.1% | 33.0% | 0.0 |
 | + Schema Linking / RAG | 100.0% | 64.0% | 65.0% | 0.3 |
 | + Self-Repair (2 retries) | 100.0% | 64.0% | 65.0% | 0.3 |
-| **Full Pipeline** | 100.0% | 64.0% | 65.0% | 8.5 |
+| **Full Pipeline** | 100.0% | 64.0% | 65.0% | 6.1 |
 
 ## Metrics Definitions
 

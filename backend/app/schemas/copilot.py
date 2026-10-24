@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
+    id: UUID | None = None
     role: str  # user | assistant
     content: str
     timestamp: datetime | None = None
@@ -37,6 +38,7 @@ class ChatResponse(BaseModel):
     """Full response for one NL2SQL turn."""
 
     session_id: UUID
+    message_id: UUID | None = None
     question: str
     answer: str  # LLM narrative answer
     sql: str | None = None  # generated SQL (may be None for conversational turns)
@@ -52,3 +54,16 @@ class SessionOut(BaseModel):
     title: str | None = None
     created_at: datetime
     message_count: int
+
+
+class MessageFeedbackRequest(BaseModel):
+    """Feedback payload for a copilot assistant message."""
+
+    rating: str = Field(..., pattern="^(up|down)$", description="'up' or 'down'")
+    comment: str | None = Field(None, max_length=1000)
+
+
+class MessageFeedbackResponse(BaseModel):
+    status: str
+    message_id: UUID
+    rating: str

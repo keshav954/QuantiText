@@ -115,17 +115,18 @@ backend/app/
 |---------------------|--------|---------|
 | **Scaffold & DevOps** | Done | Docker Compose, multi-stage non-root Dockerfile with dev arg, CI workflow |
 | **Database & Migrations** | Done | PostgreSQL 16, Alembic migrations (0001–0004), read-only role permissions |
-| **Auth & RBAC** | Done | JWT bearer authentication, 60m expiry, bcrypt hashing, password change, robust key validation |
+| **Auth & RBAC** | Done | JWT bearer authentication, 60m expiry, argon2id hashing, password change, robust key validation |
 | **Audit Logging** | Done | Audit trails on auth, kpi, inventory, anomalies, forecasting, copilot, and reports |
 | **Frontend Dashboard** | Done | React + Vite + TypeScript, KPI tracking, Recharts, dark mode, alert feed, copilot chat |
 | **Forecasting Pipeline** | Done | LightGBM lag/rolling regression with baseline models, walk-forward leakage tests, metrics |
 | **Inventory Intelligence** | Done | Dynamic reorder points, safety stock, what-if simulation, ReportLab PDF purchase orders |
-| **Anomaly Detection** | Done | Ensemble Z-Score + Isolation Forest, alert thresholds, authenticated `/alerts/ws` stream |
-| **Closed-Loop Decision Engine** | Done | Anomaly → root cause → forecast impact → recommendation → human approval → logged outcome |
+| **Anomaly Detection** | Done | Ensemble Z-Score + Isolation Forest, alert thresholds |
+| **Anomaly WebSocket Stream** | Partial | Authenticated `/alerts/ws` route live; event publisher and broadcast worker being wired |
+| **Closed-Loop Decision Engine** | Partial | Anomaly → root cause → forecast impact → recommendation pipeline built; outcome variance logging in progress |
 | **AI Copilot (NL2SQL)** | Done | AST table subquery org scoping (`scope_to_org`), function allowlist, repair loop with `rollback()` |
+| **Copilot Message Feedback** | Partial | Interactive Thumbs-Up / Thumbs-Down UI state; persistent feedback storage endpoint in progress |
 | **Report Generation** | Done | Executive and operational PDF reports generated via ReportLab |
 | **BYOD Data Onboarding** | Done | Multi-tenant CSV upload, schema mapping, and validation |
-| **Copilot Message Feedback** | Done | Interactive Thumbs-Up / Thumbs-Down feedback buttons on copilot responses |
 | **pgvector Few-Shot Retrieval** | Partial | Fallback & schema few-shot examples in place; dedicated pgvector embedding index planned |
 | **Weekly Scheduled Report Cron** | Partial | Core service method and schema ready; standing daemon requires production beat worker |
 | **DOCX Report Export** | Not built | High-fidelity PDF export implemented via ReportLab; DOCX export omitted |
@@ -139,9 +140,8 @@ backend/app/
 | **Anomaly Detection (isolation forest)** | Recall | 0.647 | `docs/eval/eval_anomaly.py` |
 | **Inventory Policy Optimization** | Cost Reduction | 93.0%* | `docs/eval/eval_inventory.py` |
 | **Inventory Policy Optimization** | Stockout Reduction | 99.9% | `docs/eval/eval_inventory.py` |
-| **NL2SQL Semantic Accuracy** | Gold Set Exec Accuracy | 100.0% (50/50) | `docs/eval/eval_nl2sql.py --live` |
-| **NL2SQL Tenant Security** | Org Scoping Enforcement | 100.0% (50/50) | `docs/eval/eval_nl2sql.py --live` |
-| **NL2SQL Robustness** | Penetration Vectors Blocked | 5/5 Bypass Tests | `backend/tests/test_copilot_service.py` |
+| **NL2SQL Benchmark** | Full Pipeline SQL Correctness | 64.0% (50 questions) | `docs/eval/eval_nl2sql.py --live` |
+| **NL2SQL Security** | Penetration Vectors Blocked | 5/5 Bypass Tests | `backend/tests/test_copilot_service.py` |
 
 > \* **Caveat on Inventory Results**: The 93.0% cost reduction was evaluated on synthetic benchmark distributions assuming a severe stockout penalty (£150/unit) against an unoptimized static reorder-point baseline. In real deployment settings with moderate margin loss or different holding-to-stockout ratios, the observed cost reduction will depend on company-specific penalty parameters. All reported evaluation numbers originate directly from scripts in `backend/ml/` or `docs/eval/`. Never fabricated.
 

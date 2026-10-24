@@ -30,9 +30,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install runtime PostgreSQL client library
+# Install runtime libraries (PostgreSQL client, OpenMP for LightGBM, curl for healthchecks)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libpq5 curl && \
+    apt-get install -y --no-install-recommends libpq5 libgomp1 curl && \
     rm -rf /var/lib/apt/lists/* && \
     useradd --create-home --shell /bin/bash appuser
 

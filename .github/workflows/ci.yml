@@ -71,8 +71,36 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install dependencies
         run: pip install ".[dev,ml,llm]"
+      - name: Run Alembic migrations
+        run: alembic upgrade head
       - name: Run tests
         run: pytest -q
+
+  stack-health-check:
+    name: Stack Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup environment
+        run: cp .env.example .env
+      - name: Start stack
+        run: docker compose up -d --build
+      - name: Wait for backend /health
+        run: |
+          for i in {1..30}; do
+            if curl -s -f http://localhost:8000/health; then
+              echo "Backend health check passed!"
+              exit 0
+            fi
+            echo "Waiting for backend ($i/30)..."
+            sleep 2
+          done
+          echo "Health check timed out"
+          docker compose logs backend
+          exit 1
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
 
   docker-build:
     name: Docker Build

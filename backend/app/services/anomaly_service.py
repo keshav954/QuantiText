@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import text
@@ -440,6 +440,7 @@ async def _create_alert(
     desc = (
         f"Detected by {a['detector']} on {a['detected_date']}. Severity: {a['severity_score']:.0%}."
     )
+    alert_id = uuid.uuid4()
     try:
         await db.execute(
             text("""
@@ -447,7 +448,7 @@ async def _create_alert(
                 VALUES (:id, :org_id, :anomaly_id, :title, :description, :severity, FALSE)
             """),
             {
-                "id": str(uuid.uuid4()),
+                "id": str(alert_id),
                 "org_id": str(org_id),
                 "anomaly_id": str(anomaly_id),
                 "title": title,
@@ -455,5 +456,23 @@ async def _create_alert(
                 "severity": severity,
             },
         )
+        # Broadcast alert to active WebSocket clients for this org
+        try:
+            from app.api.anomaly import ws_manager
+
+            await ws_manager.broadcast_to_org(
+                str(org_id),
+                {
+                    "type": "new_alert",
+                    "id": str(alert_id),
+                    "anomaly_id": str(anomaly_id),
+                    "title": title,
+                    "description": desc,
+                    "severity": severity,
+                    "created_at": datetime.now(UTC).isoformat(),
+                },
+            )
+        except Exception:
+            pass
     except Exception:
         log.warning("Failed to create alert", exc_info=True)
