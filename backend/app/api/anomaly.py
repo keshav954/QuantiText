@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_role
+from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
 from app.schemas.anomaly import (
     AlertListResponse,
@@ -40,6 +41,7 @@ router = APIRouter(tags=["anomaly"])
     dependencies=[Depends(require_role("manager"))],
 )
 async def trigger_detection(
+    request: Request,
     lookback_days: int = Query(30, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -50,6 +52,19 @@ async def trigger_detection(
     """
     result = await anomaly_service.run_detection(
         db, org_id=current_user.org_id, lookback_days=lookback_days
+    )
+    await log_audit(
+        db,
+        action="anomaly_detection_run",
+        resource="anomaly",
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={
+            "lookback_days": lookback_days,
+            "anomalies_detected": result.get("anomalies_detected", 0),
+            "alerts_created": result.get("alerts_created", 0),
+        },
+        ip_address=get_client_ip(request),
     )
     return DetectionRunResult(**result)
 
@@ -88,6 +103,7 @@ async def list_anomalies(
 )
 async def dismiss_anomaly(
     anomaly_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -98,6 +114,16 @@ async def dismiss_anomaly(
         from fastapi import HTTPException, status
 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anomaly not found")
+
+    await log_audit(
+        db,
+        action="dismiss_anomaly",
+        resource="anomaly",
+        resource_id=str(anomaly_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        ip_address=get_client_ip(request),
+    )
     return {"status": "dismissed"}
 
 
@@ -135,11 +161,21 @@ async def list_alerts(
 )
 async def mark_alerts_read(
     body: MarkReadRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     count = await anomaly_service.mark_alerts_read(
         db, org_id=current_user.org_id, alert_ids=body.alert_ids
+    )
+    await log_audit(
+        db,
+        action="mark_alerts_read",
+        resource="alert",
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={"marked_read": count, "alert_count": len(body.alert_ids)},
+        ip_address=get_client_ip(request),
     )
     return {"marked_read": count}
 

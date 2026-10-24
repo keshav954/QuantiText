@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -231,4 +231,73 @@ async def export_report(
         content=text_content,
         media_type="text/plain",
         headers={"Content-Disposition": f"attachment; filename=report_{report_id}.txt"},
+    )
+
+
+@router.get(
+    "/recommendations/{recommendation_id}/po.pdf",
+    response_class=Response,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def export_purchase_order_pdf(
+    recommendation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Generate and export a formal Purchase Order as a PDF document."""
+    pdf_bytes = await report_service.generate_purchase_order_pdf(
+        db, org_id=current_user.org_id, recommendation_id=recommendation_id
+    )
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Purchase order unavailable or recommendation not found",
+        )
+
+    await log_audit(
+        db,
+        action="export_po_pdf",
+        resource="purchase_order",
+        resource_id=str(recommendation_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="PO_{recommendation_id}.pdf"'},
+    )
+
+
+@router.get(
+    "/{report_id}/export.pdf",
+    response_class=Response,
+    dependencies=[Depends(require_role("viewer"))],
+)
+async def export_report_pdf(
+    report_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Export an executive report as a formatted PDF document."""
+    pdf_bytes = await report_service.export_report_pdf_by_id(
+        db, org_id=current_user.org_id, report_id=report_id
+    )
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    await log_audit(
+        db,
+        action="export_pdf",
+        resource="report",
+        resource_id=str(report_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="report_{report_id}.pdf"'},
     )

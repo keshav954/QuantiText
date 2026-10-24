@@ -1,24 +1,42 @@
-FROM python:3.11-slim
+# ── Stage 1: Build dependencies ────────────────────────────────────────────────
+FROM python:3.11-slim AS builder
 
-# Prevent Python from writing .pyc files and enable unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /install
 
-# Install system dependencies needed by asyncpg and psycopg2
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev && \
-    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir ".[dev,ml,llm]"
+    pip install --no-cache-dir --prefix=/install ".[ml,llm]"
 
-# Copy application code
-COPY . .
+# ── Stage 2: Production runtime ───────────────────────────────────────────────
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/install/bin:$PATH" \
+    PYTHONPATH="/install/lib/python3.11/site-packages"
+
+WORKDIR /app
+
+# Install runtime PostgreSQL client library
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpq5 curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --create-home --shell /bin/bash appuser
+
+# Copy installed packages from builder
+COPY --from=builder /install /install
+
+# Copy application source code with non-root ownership
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 EXPOSE 8000
 

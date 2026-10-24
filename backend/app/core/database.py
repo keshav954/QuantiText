@@ -17,13 +17,22 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-# Read-only engine for NL2SQL (separate pool, enforced by DB role later)
+# Read-only engine for NL2SQL (separate pool, enforced by DB role with statement timeout)
+readonly_connect_args = {}
+if "postgresql" in settings.DB_READONLY_URL:
+    # 5-second query timeout to prevent expensive or runaway queries
+    readonly_connect_args = {
+        "command_timeout": 5.0,
+        "server_settings": {"statement_timeout": "5000"},
+    }
+
 readonly_engine = create_async_engine(
     settings.DB_READONLY_URL,
     echo=settings.DEBUG,
     pool_size=5,
     max_overflow=5,
     pool_pre_ping=True,
+    connect_args=readonly_connect_args,
 )
 
 # Session factories

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_readonly_db, require_role
+from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
 from app.schemas.copilot import ChatMessage, ChatRequest, ChatResponse, SessionOut
 from app.services import copilot_service
@@ -28,6 +29,7 @@ router = APIRouter(prefix="/copilot", tags=["copilot"])
 )
 async def chat(
     body: ChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     readonly_db: AsyncSession = Depends(get_readonly_db),
     current_user: User = Depends(get_current_user),
@@ -46,6 +48,22 @@ async def chat(
         user_id=current_user.id,
         question=body.question,
         session_id=body.session_id,
+    )
+    await log_audit(
+        db,
+        action="chat_query",
+        resource="copilot",
+        resource_id=str(result.get("session_id")),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={
+            "question": body.question[:200],
+            "has_sql": bool(result.get("sql")),
+            "row_count": result.get("result", {}).get("row_count", 0)
+            if result.get("result")
+            else 0,
+        },
+        ip_address=get_client_ip(request),
     )
     return ChatResponse(**result)
 

@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
+from app.core.config import settings, validate_production_settings
 from app.core.exceptions import register_exception_handlers
 
 
@@ -19,9 +19,12 @@ from app.core.exceptions import register_exception_handlers
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Startup / shutdown lifecycle.
-    - Startup: verify DB and Redis connections.
+    - Startup: validate settings, verify DB and Redis connections.
     - Shutdown: dispose engine pools.
     """
+    # ── Pre-flight checks ────────────────────────────────
+    validate_production_settings()
+
     # ── Startup ──────────────────────────────────────────
     from app.core.database import engine, readonly_engine
     from app.core.redis import redis_pool
@@ -56,7 +59,7 @@ def create_app() -> FastAPI:
     # ── CORS ─────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],
+        allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

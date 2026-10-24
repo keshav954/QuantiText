@@ -27,6 +27,8 @@ dependencies = [
     # Data processing (used by upload_service for CSV/Excel onboarding)
     "pandas>=2.2",
     "openpyxl>=3.1",
+    # PDF generation for executive reports and purchase orders
+    "reportlab>=4.0",
 ]
 
 [project.optional-dependencies]

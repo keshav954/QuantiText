@@ -108,3 +108,58 @@ async def test_register_requires_admin(async_client):
         assert response.status_code == 403
     finally:
         _test_app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_change_password_success(async_client):
+    """Authenticated user can change their password."""
+    from app.api.deps import get_current_user
+    from tests.conftest import _test_app
+
+    fake_user = _make_fake_user(role="viewer")
+    _test_app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    try:
+        with patch("app.api.auth.auth_service") as mock_svc:
+            mock_svc.change_password = AsyncMock(return_value=True)
+            with patch("app.api.auth.log_audit", new_callable=AsyncMock):
+                response = await async_client.post(
+                    "/api/v1/auth/change-password",
+                    json={
+                        "current_password": "old_password",
+                        "new_password": "new_password_123",
+                    },
+                    headers={"Authorization": "Bearer fake.token"},
+                )
+        assert response.status_code == 200
+        assert response.json() == {"status": "password_changed"}
+    finally:
+        _test_app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_change_password_wrong_current(async_client):
+    """Change password fails if current password is wrong."""
+    from app.api.deps import get_current_user
+    from app.core.exceptions import ForbiddenError
+    from tests.conftest import _test_app
+
+    fake_user = _make_fake_user(role="viewer")
+    _test_app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    try:
+        with patch("app.api.auth.auth_service") as mock_svc:
+            mock_svc.change_password = AsyncMock(
+                side_effect=ForbiddenError("Incorrect current password")
+            )
+            response = await async_client.post(
+                "/api/v1/auth/change-password",
+                json={
+                    "current_password": "wrong_password",
+                    "new_password": "new_password_123",
+                },
+                headers={"Authorization": "Bearer fake.token"},
+            )
+        assert response.status_code == 403
+    finally:
+        _test_app.dependency_overrides.pop(get_current_user, None)

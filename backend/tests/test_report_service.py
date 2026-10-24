@@ -85,3 +85,59 @@ def test_template_narrative():
     assert "Widget A" in narrative
     assert "3 critical" in narrative
     assert "SYNTHETIC" in narrative
+
+
+@pytest.mark.asyncio
+async def test_export_po_pdf_endpoint(async_client):
+    """GET /api/v1/reports/recommendations/{id}/po.pdf returns PDF bytes."""
+    from unittest.mock import AsyncMock, patch
+
+    from app.api.deps import get_current_user
+    from tests.conftest import _test_app
+    from tests.test_auth import _make_fake_user
+
+    fake_user = _make_fake_user(role="viewer")
+    _test_app.dependency_overrides[get_current_user] = lambda: fake_user
+    fake_rec_id = uuid.uuid4()
+
+    try:
+        with patch(
+            "app.services.report_service.generate_purchase_order_pdf", new_callable=AsyncMock
+        ) as mock_pdf:
+            mock_pdf.return_value = b"%PDF-1.4 mock pdf content"
+            with patch("app.api.report.log_audit", new_callable=AsyncMock):
+                response = await async_client.get(
+                    f"/api/v1/reports/recommendations/{fake_rec_id}/po.pdf"
+                )
+                assert response.status_code == 200
+                assert response.headers["content-type"] == "application/pdf"
+                assert response.content.startswith(b"%PDF")
+    finally:
+        _test_app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_export_report_pdf_endpoint(async_client):
+    """GET /api/v1/reports/{id}/export.pdf returns PDF bytes."""
+    from unittest.mock import AsyncMock, patch
+
+    from app.api.deps import get_current_user
+    from tests.conftest import _test_app
+    from tests.test_auth import _make_fake_user
+
+    fake_user = _make_fake_user(role="viewer")
+    _test_app.dependency_overrides[get_current_user] = lambda: fake_user
+    fake_rep_id = uuid.uuid4()
+
+    try:
+        with patch(
+            "app.services.report_service.export_report_pdf_by_id", new_callable=AsyncMock
+        ) as mock_pdf:
+            mock_pdf.return_value = b"%PDF-1.4 mock report pdf content"
+            with patch("app.api.report.log_audit", new_callable=AsyncMock):
+                response = await async_client.get(f"/api/v1/reports/{fake_rep_id}/export.pdf")
+                assert response.status_code == 200
+                assert response.headers["content-type"] == "application/pdf"
+                assert response.content.startswith(b"%PDF")
+    finally:
+        _test_app.dependency_overrides.pop(get_current_user, None)

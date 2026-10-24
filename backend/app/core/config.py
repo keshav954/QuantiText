@@ -3,7 +3,16 @@ Application settings loaded exclusively from environment variables.
 Never hardcode secrets. Copy .env.example to .env for local development.
 """
 
+from __future__ import annotations
+
+import logging
+import sys
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+log = logging.getLogger(__name__)
+
+_DEFAULT_SECRET = "change-this-to-a-random-64-char-string"
 
 
 class Settings(BaseSettings):
@@ -24,6 +33,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
 
+    # ── CORS (comma-separated origins) ───────────────────
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
     # ── PostgreSQL ───────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://quantitext:changeme_dev_only@postgres:5432/quantitext"
     DATABASE_URL_SYNC: str = (
@@ -35,9 +47,10 @@ class Settings(BaseSettings):
 
     # ── Redis ────────────────────────────────────────────
     REDIS_URL: str = "redis://redis:6379/0"
+    REDIS_PASSWORD: str = ""
 
     # ── Auth / JWT ───────────────────────────────────────
-    SECRET_KEY: str = "change-this-to-a-random-64-char-string"
+    SECRET_KEY: str = _DEFAULT_SECRET
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     ALGORITHM: str = "HS256"
 
@@ -58,6 +71,26 @@ class Settings(BaseSettings):
     # ── MLflow ───────────────────────────────────────────
     MLFLOW_TRACKING_URI: str = "http://localhost:5000"
 
+    # ── SQL Safety (seconds) ─────────────────────────────
+    SQL_STATEMENT_TIMEOUT: int = 10
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parse comma-separated CORS_ORIGINS into a list."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
 
 # Singleton — import this everywhere
 settings = Settings()
+
+
+def validate_production_settings() -> None:
+    """
+    Called at startup. Refuses to boot in production with insecure defaults.
+    """
+    if not settings.DEBUG and settings.SECRET_KEY == _DEFAULT_SECRET:
+        log.critical(
+            "FATAL: SECRET_KEY is still the default placeholder. "
+            "Set a strong random secret before running with DEBUG=false."
+        )
+        sys.exit(1)

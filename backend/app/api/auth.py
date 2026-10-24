@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db, require_role
 from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserRead,
+)
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -88,3 +94,33 @@ async def get_me(
     Get the currently authenticated user's profile.
     """
     return UserRead.model_validate(current_user)
+
+
+@router.post("/change-password", status_code=200)
+async def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Change the current user's password. Requires the current password for verification.
+    """
+    await auth_service.change_password(
+        db,
+        user=current_user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+
+    await log_audit(
+        db,
+        action="change_password",
+        resource="user",
+        resource_id=str(current_user.id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        ip_address=get_client_ip(request),
+    )
+
+    return {"status": "password_changed"}

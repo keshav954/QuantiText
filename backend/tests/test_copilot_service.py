@@ -6,9 +6,60 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.copilot_service import _infer_chart_type, _inject_org_id, _validate_sql
+from app.services.copilot_service import (
+    _infer_chart_type,
+    _inject_org_id,
+    _validate_sql,
+    validate_and_secure_sql,
+)
 
 # ── SQL validation ──────────────────────────────────────────────────────────────
+
+
+def test_validate_and_secure_sql_valid():
+    sql = "SELECT sku, total_revenue FROM v_sales_by_product WHERE org_id = '<org_id>'"
+    secured = validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+    assert "11111111-1111-1111-1111-111111111111" in secured
+    assert "v_sales_by_product" in secured
+
+
+def test_validate_and_secure_sql_injects_missing_org():
+    sql = "SELECT * FROM v_kpi_daily WHERE sale_date >= CURRENT_DATE"
+    secured = validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+    assert "org_id = '11111111-1111-1111-1111-111111111111'" in secured
+
+
+def test_validate_and_secure_sql_blocks_unauthorized_table():
+    sql = "SELECT * FROM users WHERE org_id = '<org_id>'"
+    with pytest.raises(ValueError, match="not permitted"):
+        validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+
+
+def test_validate_and_secure_sql_blocks_functions():
+    sql = "SELECT pg_sleep(5) FROM v_kpi_daily WHERE org_id = '<org_id>'"
+    with pytest.raises(ValueError, match="blocked"):
+        validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+
+
+def test_validate_and_secure_sql_with_cte():
+    sql = "WITH monthly AS (SELECT * FROM v_kpi_daily) SELECT * FROM monthly"
+    secured = validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+    assert "WITH monthly AS" in secured
+    assert "11111111-1111-1111-1111-111111111111" in secured
+
+
+def test_validate_and_secure_sql_with_conversational_wrapping():
+    sql = "Here is the SQL query you requested:\n```sql\nSELECT * FROM v_kpi_daily\n```\nHope this helps!"
+    secured = validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+    assert "SELECT" in secured
+    assert "v_kpi_daily" in secured
+
+
+def test_validate_and_secure_sql_supporting_tables():
+    sql = "SELECT p.name, c.name FROM products p JOIN categories c ON p.category_id = c.id"
+    secured = validate_and_secure_sql(sql, "11111111-1111-1111-1111-111111111111")
+    assert "products" in secured
+    assert "categories" in secured
 
 
 def test_valid_select_passes():

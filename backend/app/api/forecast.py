@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_redis, require_role
+from app.core.audit import get_client_ip, log_audit
 from app.models.user import User
 from app.schemas.forecast import ForecastListResponse, ForecastResponse, ForecastSummary
 from app.services import forecasting_service
@@ -54,6 +55,7 @@ async def list_forecasts(
 )
 async def get_forecast(
     product_id: uuid.UUID,
+    request: Request,
     horizon: int = Query(
         30, ge=1, le=90, description="Forecast horizon in days (1, 7, or 30 recommended)"
     ),
@@ -78,6 +80,21 @@ async def get_forecast(
         horizon=horizon,
         force_retrain=force_retrain,
     )
+    if force_retrain:
+        await log_audit(
+            db,
+            action="retrain_forecast",
+            resource="forecast",
+            resource_id=str(product_id),
+            user_id=current_user.id,
+            org_id=current_user.org_id,
+            details={
+                "horizon": horizon,
+                "model": result.get("model_name"),
+                "mape": result.get("mape"),
+            },
+            ip_address=get_client_ip(request),
+        )
     return ForecastResponse(**result)
 
 
@@ -88,6 +105,7 @@ async def get_forecast(
 )
 async def retrain_forecast(
     product_id: uuid.UUID,
+    request: Request,
     horizon: int = Query(30, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
@@ -104,5 +122,15 @@ async def retrain_forecast(
         product_id=product_id,
         horizon=horizon,
         force_retrain=True,
+    )
+    await log_audit(
+        db,
+        action="retrain_forecast",
+        resource="forecast",
+        resource_id=str(product_id),
+        user_id=current_user.id,
+        org_id=current_user.org_id,
+        details={"horizon": horizon, "model": result.get("model_name"), "mape": result.get("mape")},
+        ip_address=get_client_ip(request),
     )
     return ForecastResponse(**result)

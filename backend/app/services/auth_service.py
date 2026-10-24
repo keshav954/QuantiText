@@ -95,3 +95,22 @@ def build_token_for_user(user: User) -> dict:
         "token_type": "bearer",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
+
+
+async def change_password(
+    db: AsyncSession,
+    *,
+    user: User,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """
+    Verify the current password and update to the new one.
+    Raises ForbiddenError if the current password is wrong.
+    """
+    if not verify_password(current_password, user.hashed_password):
+        raise ForbiddenError("Current password is incorrect")
+
+    user.hashed_password = hash_password(new_password)
+    db.add(user)
+    await db.commit()

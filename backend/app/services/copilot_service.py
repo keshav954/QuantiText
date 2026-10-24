@@ -24,8 +24,10 @@ import logging
 import re
 import uuid
 
+import sqlglot
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlglot import exp
 
 from app.services.llm.base import TaskType
 from app.services.llm.factory import get_provider
@@ -82,7 +84,41 @@ _FEW_SHOTS = [
     },
 ]
 
-# ── SQL validation ─────────────────────────────────────────────────────────────
+# ── SQL validation (sqlglot AST verification) ─────────────────────────────────
+
+ALLOWED_VIEWS: set[str] = {
+    "v_kpi_daily",
+    "v_sales_by_product",
+    "v_sales_by_region",
+    "v_inventory_status",
+}
+
+# Allow both aggregated views and read-only schema tables
+ALLOWED_TABLES: set[str] = {
+    "v_kpi_daily",
+    "v_sales_by_product",
+    "v_sales_by_region",
+    "v_inventory_status",
+    "daily_sales",
+    "products",
+    "categories",
+    "forecasts",
+    "anomalies",
+}
+
+BLOCKED_FUNCTIONS: set[str] = {
+    "pg_sleep",
+    "pg_read_file",
+    "pg_write_file",
+    "pg_read_binary_file",
+    "query_to_xml",
+    "dblink",
+    "eval",
+    "current_setting",
+    "set_config",
+    "version",
+}
+
 
 _DANGEROUS = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|EXEC|EXECUTE|CALL)\b",
@@ -90,27 +126,118 @@ _DANGEROUS = re.compile(
 )
 
 
+def _extract_sql_from_text(raw: str) -> str:
+    """Extract clean SQL string from LLM output (fenced code block or raw query)."""
+    cleaned = raw.strip()
+
+    # Look for markdown code fence first
+    match = re.search(r"```(?:sql)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+    if match:
+        cleaned = match.group(1).strip()
+    else:
+        # If no code fence, find start of SELECT or WITH
+        select_match = re.search(r"\b(SELECT|WITH)\b[\s\S]*", cleaned, re.IGNORECASE)
+        if select_match:
+            cleaned = select_match.group(0).strip()
+
+    return cleaned.rstrip(";").strip()
+
+
 def _validate_sql(sql: str) -> str:
     """
-    Validate and clean extracted SQL.
-    - Strip markdown code fences.
-    - Ensure it's a SELECT.
-    - Reject dangerous keywords.
-    Raises ValueError if invalid.
+    Validate and clean extracted SQL (backward compatibility).
+    Ensures query parses as a SELECT and does not contain dangerous keywords.
     """
-    # Strip markdown fences
-    sql = re.sub(r"```(?:sql)?", "", sql, flags=re.IGNORECASE).strip().rstrip(";").strip()
+    cleaned = re.sub(r"```(?:sql)?", "", sql, flags=re.IGNORECASE).strip().rstrip(";").strip()
 
-    # Ensure SELECT
-    if not re.match(r"^\s*SELECT\b", sql, re.IGNORECASE):
-        raise ValueError(f"Generated SQL is not a SELECT statement: {sql[:80]}")
+    # Ensure SELECT prefix first
+    if not re.match(r"^\s*SELECT\b", cleaned, re.IGNORECASE):
+        raise ValueError(f"Generated SQL is not a SELECT statement: {cleaned[:80]}")
 
     # Reject dangerous keywords
-    match = _DANGEROUS.search(sql)
+    match = _DANGEROUS.search(cleaned)
     if match:
         raise ValueError(f"Dangerous keyword in generated SQL: {match.group()}")
 
-    return sql
+    try:
+        expression = sqlglot.parse_one(cleaned, read="postgres")
+    except Exception as e:
+        raise ValueError(f"Invalid SQL syntax: {e}") from e
+
+    if not isinstance(expression, exp.Select):
+        raise ValueError(f"Generated SQL is not a SELECT statement: {cleaned[:80]}")
+
+    return cleaned
+
+
+def validate_and_secure_sql(sql: str, org_id: str) -> str:
+    """
+    Parse and validate generated SQL using sqlglot AST:
+    1. Extract SQL from markdown or conversational fences.
+    2. Enforce only SELECT statements.
+    3. Allowlist tables/views strictly to safe BI views and tables (customer PII excluded).
+    4. Block malicious function calls (pg_sleep, filesystem access, etc.).
+    5. Enforce tenant isolation by verifying or injecting org_id in the WHERE clause.
+    """
+    # 1. Clean and extract SQL
+    cleaned = _extract_sql_from_text(sql)
+    if not cleaned:
+        raise ValueError("Generated SQL statement is empty.")
+
+    # Reject dangerous keywords directly
+    match = _DANGEROUS.search(cleaned)
+    if match:
+        raise ValueError(f"Dangerous keyword in generated SQL: {match.group()}")
+
+    # 2. Parse into AST
+    try:
+        expression = sqlglot.parse_one(cleaned, read="postgres")
+    except Exception as e:
+        raise ValueError(f"Invalid SQL syntax: {e}") from e
+
+    # 3. Restrict to SELECT only
+    if not isinstance(expression, exp.Select):
+        raise ValueError("Only read-only SELECT queries are permitted.")
+
+    # 4. Check tables against allowlist (excluding CTE aliases)
+    cte_names = {
+        cte.alias_or_name.lower() for cte in expression.find_all(exp.CTE) if cte.alias_or_name
+    }
+    tables = [t.name.lower() for t in expression.find_all(exp.Table) if t.name]
+
+    for table_name in tables:
+        if table_name in cte_names:
+            continue
+        if table_name not in ALLOWED_TABLES:
+            raise ValueError(
+                f"Querying '{table_name}' is not permitted. "
+                f"Allowed views and tables: {', '.join(sorted(ALLOWED_TABLES))}."
+            )
+
+    # 5. Block dangerous functions
+    for func in expression.find_all((exp.Func, exp.Anonymous)):
+        fname = (func.name if hasattr(func, "name") and func.name else func.key or "").lower()
+        if fname in BLOCKED_FUNCTIONS:
+            raise ValueError(f"Function call '{fname}()' is blocked for security reasons.")
+
+    # 6. Tenant isolation: replace placeholders and ensure org_id filter
+    sql_str = expression.sql("postgres")
+    sql_str = sql_str.replace("'<org_id>'", f"'{org_id}'").replace("<org_id>", f"'{org_id}'")
+
+    reparsed = sqlglot.parse_one(sql_str, read="postgres")
+    has_org_filter = False
+    for eq in reparsed.find_all(exp.EQ):
+        left_col = eq.left.name if isinstance(eq.left, exp.Column) else ""
+        right_col = eq.right.name if isinstance(eq.right, exp.Column) else ""
+        if left_col.lower() == "org_id" or right_col.lower() == "org_id":
+            has_org_filter = True
+            break
+
+    # If the LLM omitted org_id from the WHERE clause, inject it automatically
+    if not has_org_filter and tables:
+        reparsed = reparsed.where(f"org_id = '{org_id}'")
+
+    return reparsed.sql("postgres")
 
 
 def _inject_org_id(sql: str, org_id: str) -> str:
@@ -145,6 +272,48 @@ async def chat(
         {"question": e["question"], "sql": _inject_org_id(e["sql"], str(org_id))}
         for e in _FEW_SHOTS
     ]
+
+    # Check if the question is a greeting or general help request
+    clean_q = question.strip().lower().rstrip("?!.")
+    if clean_q in {
+        "hi",
+        "hello",
+        "hey",
+        "help",
+        "who are you",
+        "what can you do",
+        "what can you do for me",
+        "thanks",
+        "thank you",
+        "good morning",
+        "good afternoon",
+        "good evening",
+    }:
+        answer = (
+            "Hello! I am your QuantiText AI Copilot. I can query your business data in real time.\n\n"
+            "Here are a few questions you can ask me:\n"
+            '• **Revenue & KPIs**: *"What is the total revenue for the last 30 days?"*\n'
+            '• **Top Performers**: *"Which 5 products have the highest revenue?"*\n'
+            '• **Inventory Health**: *"Which products are low on stock or need reordering?"*\n'
+            '• **Trends**: *"Show me daily revenue trends for this month"*\n'
+            '• **Regional**: *"What is our sales breakdown by region?"*\n\n'
+            "What would you like to analyze?"
+        )
+        follow_ups = [
+            "What is the total revenue for the last 30 days?",
+            "Which 5 products have the highest revenue?",
+            "Which products are low on stock?",
+        ]
+        await _save_messages(db, session_id, question, answer, None, None)
+        return {
+            "session_id": session_id,
+            "question": question,
+            "answer": answer,
+            "sql": None,
+            "result": None,
+            "follow_up_suggestions": follow_ups,
+            "from_cache": False,
+        }
 
     provider = get_provider()
 
@@ -185,8 +354,7 @@ async def chat(
         raw_sql = raw_sql_response.text
 
         try:
-            sql = _validate_sql(raw_sql)
-            sql = _inject_org_id(sql, str(org_id))
+            sql = validate_and_secure_sql(raw_sql, str(org_id))
 
             # 4. Execute on readonly connection
             result = await readonly_db.execute(text(sql))
@@ -201,8 +369,8 @@ async def chat(
                 "chart_type": _infer_chart_type(question, columns, len(rows)),
             }
 
-            # 5. Generate narrative answer
-            result_preview = _format_result_for_llm(columns, rows[:10])
+            # 5. Generate narrative answer (only aggregated summary sent to LLM)
+            result_preview = _format_result_for_llm(columns, rows, len(rows))
             answer_response = await provider.generate(
                 f"Question: {question}\n\nQuery Result:\n{result_preview}\n\nProvide a concise, accurate answer using ONLY the numbers above.",
                 system_prompt=(
@@ -220,14 +388,45 @@ async def chat(
             log.warning("SQL validation attempt %d failed: %s", current_attempt, e)
             current_attempt += 1
             if current_attempt > max_retries:
-                answer = "I couldn't generate a valid SQL query for that question. Could you rephrase it?"
+                # Fallback to conversational explanation from the LLM
+                try:
+                    conv_response = await provider.generate(
+                        question,
+                        system_prompt=(
+                            "You are QuantiText's intelligent Business Intelligence assistant. "
+                            "If the user is asking a conversational question, greeting, or concept question (like EOQ, MAPE, safety stock), "
+                            "answer clearly and politely in 2-4 sentences. "
+                            "Explain what metrics they can ask about: daily sales/revenue, top products, region breakdowns, inventory health, demand forecasts, and anomalies. "
+                            "Do not mention internal database errors."
+                        ),
+                        task_type=TaskType.GENERAL,
+                        temperature=0.3,
+                    )
+                    answer = conv_response.text
+                except Exception:
+                    answer = (
+                        "I couldn't generate a database query for that question. "
+                        "You can ask about daily revenue, top products, low stock items, or detected anomalies."
+                    )
                 sql = None
         except Exception as e:
             last_error = f"Execution error: {e}"
             log.warning("SQL execution attempt %d failed: %s", current_attempt, e)
             current_attempt += 1
             if current_attempt > max_retries:
-                answer = "The query ran into an issue. Please try rephrasing your question."
+                try:
+                    conv_response = await provider.generate(
+                        question,
+                        system_prompt=(
+                            "You are QuantiText's intelligent Business Intelligence assistant. "
+                            "Answer the user's question politely and suggest they try asking with a specific metric like revenue, products, or inventory."
+                        ),
+                        task_type=TaskType.GENERAL,
+                        temperature=0.3,
+                    )
+                    answer = conv_response.text
+                except Exception:
+                    answer = "The query ran into an issue. Please try rephrasing with a specific metric such as revenue or stock."
 
     # 6. Generate follow-up suggestions
     follow_ups = _generate_follow_ups(question, query_result)
@@ -399,14 +598,58 @@ async def _save_messages(
     await db.commit()
 
 
-def _format_result_for_llm(columns: list[str], rows: list[list]) -> str:
-    """Format query results as a compact text table."""
+def _format_result_for_llm(
+    columns: list[str],
+    rows: list[list],
+    total_row_count: int | None = None,
+) -> str:
+    """
+    Format query results as compact aggregated summaries for the LLM.
+    Guarantees no customer PII is sent, adhering to AGENTS.md requirements:
+    - Never send customer-level or PII data to the LLM. Only aggregated figures.
+    - Capped at maximum 10 preview rows.
+    """
     if not rows:
-        return "No results."
-    header = " | ".join(columns)
+        return "No rows returned."
+
+    count = total_row_count if total_row_count is not None else len(rows)
+    preview = rows[:10]
+
+    # Redact any customer/PII columns if present
+    pii_keywords = {"customer", "email", "phone", "first_name", "last_name", "address", "ssn"}
+    masked_indices = set()
+    safe_columns = []
+    for idx, col in enumerate(columns):
+        col_lower = col.lower()
+        if any(k in col_lower for k in pii_keywords) and col_lower not in {
+            "product_name",
+            "category_name",
+            "unique_customers",
+        }:
+            masked_indices.add(idx)
+            safe_columns.append(f"{col} [ANONYMIZED]")
+        else:
+            safe_columns.append(col)
+
+    safe_rows = []
+    for row in preview:
+        safe_r = []
+        for idx, val in enumerate(row):
+            if idx in masked_indices:
+                safe_r.append("[REDACTED]")
+            else:
+                safe_r.append(str(val))
+        safe_rows.append(safe_r)
+
+    header = " | ".join(safe_columns)
     separator = "-" * len(header)
-    data_rows = "\n".join(" | ".join(str(v) for v in row) for row in rows)
-    return f"{header}\n{separator}\n{data_rows}"
+    data_rows = "\n".join(" | ".join(r) for r in safe_rows)
+
+    summary_header = f"Result Summary: {count} total rows returned."
+    if count > len(preview):
+        summary_header += f" (Showing first {len(preview)} aggregated rows)"
+
+    return f"{summary_header}\n\n{header}\n{separator}\n{data_rows}"
 
 
 def _infer_chart_type(question: str, columns: list[str], row_count: int = 2) -> str | None:

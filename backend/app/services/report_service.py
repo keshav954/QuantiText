@@ -714,3 +714,340 @@ def _template_narrative(agg: dict) -> str:
     lines.append("⚠️ Note: All data in this report is SYNTHETIC unless stated otherwise.")
 
     return "\n".join(lines)
+
+
+# ── PDF Generation ─────────────────────────────────────────────────────────────
+
+
+async def generate_purchase_order_pdf(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    recommendation_id: uuid.UUID,
+) -> bytes | None:
+    """Generate a formal Purchase Order as a PDF document."""
+    import io
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    result = await db.execute(
+        text("""
+            SELECT
+                r.id, r.org_id, r.product_id, r.action_type, r.reason,
+                r.parameters, r.status, r.approved_by, r.decided_at, r.created_at,
+                p.name AS product_name, p.sku,
+                c.name AS category_name,
+                i.stock_on_hand, i.reorder_point, i.lead_time_days, i.unit_cost,
+                u.full_name AS approver_name, u.email AS approver_email,
+                o.name AS org_name
+            FROM recommendations r
+            LEFT JOIN products p ON p.id = r.product_id
+            LEFT JOIN categories c ON c.id = p.category_id
+            LEFT JOIN inventory i ON i.product_id = r.product_id AND i.org_id = r.org_id
+            LEFT JOIN users u ON u.id = r.approved_by
+            JOIN orgs o ON o.id = r.org_id
+            WHERE r.id = :id AND r.org_id = :org_id
+        """),
+        {"id": str(recommendation_id), "org_id": str(org_id)},
+    )
+    row = result.mappings().first()
+    if not row:
+        return None
+
+    params = row["parameters"] or {}
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except Exception:
+            params = {}
+
+    suggested_qty = int(params.get("suggested_qty", 100))
+    lead_time = int(params.get("lead_time_days") or row["lead_time_days"] or 7)
+    unit_cost = float(params.get("unit_cost") or row["unit_cost"] or 25.0)
+    urgency = str(params.get("urgency", "standard")).upper()
+    subtotal = suggested_qty * unit_cost
+    freight = 75.00 if subtotal > 0 else 0.00
+    vat = subtotal * 0.20
+    total_amount = subtotal + freight + vat
+
+    po_ref = f"PO-{str(row['id'])[:8].upper()}"
+    status_label = (
+        "AUTHORIZED PURCHASE ORDER"
+        if row["status"] == "approved"
+        else f"PURCHASE REQUISITION ({row['status'].upper()})"
+    )
+    created_dt = row["created_at"].strftime("%Y-%m-%d %H:%M UTC") if row["created_at"] else "N/A"
+    decided_dt = (
+        row["decided_at"].strftime("%Y-%m-%d %H:%M UTC")
+        if row["decided_at"]
+        else "Pending Decision"
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "DocTitle",
+        parent=styles["Heading1"],
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#0f172a"),
+    )
+    sub_style = ParagraphStyle(
+        "DocSub",
+        parent=styles["Normal"],
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#64748b"),
+    )
+    section_style = ParagraphStyle(
+        "SectionHeading",
+        parent=styles["Heading2"],
+        fontSize=12,
+        leading=16,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=10,
+        spaceAfter=6,
+    )
+
+    story = [
+        Paragraph("QuantiText — Decision Support & Inventory Intelligence", sub_style),
+        Paragraph(f"{status_label} — {po_ref}", title_style),
+        Spacer(1, 12),
+    ]
+
+    meta_table_data = [
+        ["Organization:", row["org_name"], "PO Number:", po_ref],
+        ["Created Date:", created_dt, "Urgency:", urgency],
+        [
+            "Authorized By:",
+            row["approver_name"] or "System Generated",
+            "Authorized At:",
+            decided_dt,
+        ],
+        ["Lead Time:", f"{lead_time} days", "Status:", row["status"].upper()],
+    ]
+    t_meta = Table(meta_table_data, colWidths=[95, 175, 95, 165])
+    t_meta.setStyle(
+        TableStyle(
+            [
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#334155")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    story.append(t_meta)
+    story.append(Spacer(1, 15))
+
+    story.append(Paragraph("Procurement Line Items", section_style))
+    items_data = [
+        ["SKU", "Item Description", "Category", "Qty", "Unit Cost", "Subtotal"],
+        [
+            row["sku"] or "N/A",
+            row["product_name"] or "Inventory Replenishment",
+            row["category_name"] or "General",
+            str(suggested_qty),
+            f"£{unit_cost:.2f}",
+            f"£{subtotal:,.2f}",
+        ],
+        ["", "", "", "", "Freight / Logistics:", f"£{freight:.2f}"],
+        ["", "", "", "", "VAT (20%):", f"£{vat:,.2f}"],
+        ["", "", "", "", "Grand Total:", f"£{total_amount:,.2f}"],
+    ]
+    t_items = Table(items_data, colWidths=[80, 150, 80, 50, 80, 90])
+    t_items.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("GRID", (0, 0), (-1, 1), 0.5, colors.HexColor("#e2e8f0")),
+                ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+                ("FONTNAME", (4, 4), (5, 4), "Helvetica-Bold"),
+            ]
+        )
+    )
+    story.append(t_items)
+    story.append(Spacer(1, 15))
+
+    story.append(Paragraph("System Justification & Inventory Context", section_style))
+    reason_p = Paragraph(f"<b>Reorder Trigger:</b> {row['reason']}", sub_style)
+    story.append(reason_p)
+    story.append(Spacer(1, 20))
+
+    disclaimer = Paragraph(
+        "<i>CONFIDENTIAL & SYNTHETIC DATA NOTICE: QuantiText AI Decision Support System. "
+        "Inventory figures, lead-time parameters, and costs are synthetic.</i>",
+        sub_style,
+    )
+    story.append(disclaimer)
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+async def export_report_pdf_by_id(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    report_id: uuid.UUID,
+) -> bytes | None:
+    """Export an executive report as a PDF document."""
+    import io
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    report = await get_report(db, org_id=org_id, report_id=report_id)
+    if not report:
+        return None
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Heading1"],
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#0f172a"),
+    )
+    sub_style = ParagraphStyle(
+        "ReportSub",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#64748b"),
+    )
+    section_style = ParagraphStyle(
+        "ReportSection",
+        parent=styles["Heading2"],
+        fontSize=12,
+        leading=16,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=10,
+        spaceAfter=6,
+    )
+    body_style = ParagraphStyle(
+        "ReportBody",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=14,
+        textColor=colors.HexColor("#334155"),
+    )
+
+    story = [
+        Paragraph("QuantiText — Executive Business Intelligence", sub_style),
+        Paragraph(report["title"], title_style),
+        Paragraph(
+            f"Report Type: {report['report_type'].upper()} | Generated: {report['created_at']}",
+            sub_style,
+        ),
+        Spacer(1, 12),
+    ]
+
+    if report.get("narrative"):
+        story.append(Paragraph("Executive Summary", section_style))
+        story.append(Paragraph(report["narrative"], body_style))
+        story.append(Spacer(1, 10))
+
+    agg = report.get("aggregated_data") or {}
+
+    if "kpi_summary" in agg:
+        kpi = agg["kpi_summary"]
+        story.append(Paragraph("Key Performance Indicators", section_style))
+        kpi_data = [
+            ["Metric", "Value", "Metric", "Value"],
+            [
+                "Total Revenue:",
+                f"£{kpi.get('total_revenue', 0):,.2f}",
+                "Total Orders:",
+                f"{kpi.get('total_orders', 0):,}",
+            ],
+            [
+                "Avg Order Value:",
+                f"£{kpi.get('avg_order_value', 0):,.2f}",
+                "Unique Customers:",
+                f"{kpi.get('unique_customers', 0):,}",
+            ],
+        ]
+        t_kpi = Table(kpi_data, colWidths=[110, 150, 110, 160])
+        t_kpi.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.append(t_kpi)
+        story.append(Spacer(1, 10))
+
+    if "top_products" in agg:
+        story.append(Paragraph("Top Products by Revenue", section_style))
+        prod_data = [["Rank", "Product Name", "Category", "Revenue"]]
+        for idx, p in enumerate(agg["top_products"][:5], 1):
+            prod_data.append(
+                [
+                    str(idx),
+                    p.get("product_name", "N/A"),
+                    p.get("category", "General"),
+                    f"£{p.get('total_revenue', 0):,.2f}",
+                ]
+            )
+        t_prod = Table(prod_data, colWidths=[40, 240, 120, 130])
+        t_prod.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("ALIGN", (3, 0), (3, -1), "RIGHT"),
+                ]
+            )
+        )
+        story.append(t_prod)
+        story.append(Spacer(1, 10))
+
+    story.append(Spacer(1, 10))
+    disclaimer = Paragraph(
+        "<i>NOTICE: QuantiText AI Platform. All inventory and financial data is synthetic unless stated otherwise.</i>",
+        sub_style,
+    )
+    story.append(disclaimer)
+
+    doc.build(story)
+    return buf.getvalue()

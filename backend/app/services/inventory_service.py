@@ -102,8 +102,9 @@ async def get_inventory_list(
     # 1. Load raw inventory with product/category info
     rows = await _load_inventory_rows(db, org_id)
 
-    # 2. Load demand stats (avg + std daily demand per product)
+    # 2. Load demand stats (avg + std daily demand per product) and forward forecast demand
     demand_stats = await _load_demand_stats(db, org_id)
+    forecast_demands = await _load_forecast_demand(db, org_id)
 
     # 3. Enrich each row
     items: list[dict] = []
@@ -122,7 +123,11 @@ async def get_inventory_list(
         annual_demand = avg_daily * 365
         holding_cost_per_unit = unit_cost * holding_pct
         eoq = _eoq(annual_demand, _ORDERING_COST, holding_cost_per_unit)
-        days_of_stock = (stock / avg_daily) if avg_daily > 0 else 9999.0
+
+        # Compute forward-looking days of cover from forecasts table if available; otherwise historical demand
+        forecast_rate = forecast_demands.get(product_id_str, 0.0)
+        daily_rate = forecast_rate if forecast_rate > 0 else avg_daily
+        days_of_stock = round((stock / daily_rate), 1) if daily_rate > 0 else 9999.0
 
         item = {
             "product_id": row["product_id"],
@@ -374,3 +379,27 @@ async def _load_demand_stats(db: AsyncSession, org_id: uuid.UUID) -> dict[str, d
         }
         for r in rows
     }
+
+
+async def _load_forecast_demand(db: AsyncSession, org_id: uuid.UUID) -> dict[str, float]:
+    """
+    Load forward-looking average daily demand from the forecasts table (horizon days ahead).
+    Returns {product_id_str: avg_forecast_qty}.
+    """
+    try:
+        result = await db.execute(
+            text("""
+                SELECT
+                    product_id::text,
+                    AVG(predicted_qty) AS avg_forecast_qty
+                FROM forecasts
+                WHERE org_id = :org_id
+                  AND forecast_date >= CURRENT_DATE
+                GROUP BY product_id
+            """),
+            {"org_id": str(org_id)},
+        )
+        rows = result.mappings().all()
+        return {r["product_id"]: float(r["avg_forecast_qty"] or 0) for r in rows}
+    except Exception:
+        return {}

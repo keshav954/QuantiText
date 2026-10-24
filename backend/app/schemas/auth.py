@@ -54,3 +54,10 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: str = "viewer"
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request body for password change."""
+
+    current_password: str = Field(..., min_length=6, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
