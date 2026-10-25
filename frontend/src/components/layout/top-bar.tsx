@@ -66,7 +66,7 @@ export function TopBar() {
 
   return (
     <>
-      <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/50 bg-card/30 backdrop-blur-md px-4 md:px-6">
+      <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/80 dark:border-border/50 bg-card/80 dark:bg-card/30 backdrop-blur-md px-4 md:px-6">
         {/* Mobile menu button */}
         <button
           className="md:hidden p-2 rounded-lg hover:bg-accent focus-ring"
@@ -95,14 +95,14 @@ export function TopBar() {
               id="date-range-picker"
               onClick={() => setShowPresets(!showPresets)}
               className={cn(
-                'flex items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm transition-all hover:bg-accent focus-ring',
+                'flex items-center gap-2 rounded-lg border border-border/80 dark:border-border/50 bg-card/80 dark:bg-card/50 px-3 py-2 text-sm transition-all hover:bg-accent focus-ring',
                 showPresets && 'ring-2 ring-primary/30',
               )}
               aria-expanded={showPresets}
               aria-haspopup="listbox"
             >
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="hidden sm:inline text-foreground">{presetLabel}</span>
+              <span className="hidden sm:inline text-foreground font-medium">{presetLabel}</span>
               <span className="hidden lg:inline text-muted-foreground text-xs">
                 {format(range.from, 'MMM d')} – {format(range.to, 'MMM d, yyyy')}
               </span>
@@ -111,7 +111,7 @@ export function TopBar() {
 
             {showPresets && (
               <div
-                className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border/60 bg-popover/95 p-2 shadow-2xl shadow-black/20 backdrop-blur-md animate-fade-in ring-1 ring-border"
+                className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-popover/98 p-2 shadow-xl shadow-slate-900/10 dark:shadow-2xl dark:shadow-black/40 backdrop-blur-md animate-fade-in ring-1 ring-border"
                 role="listbox"
               >
                 {presets.map(({ label, days }) => (
@@ -136,13 +136,13 @@ export function TopBar() {
           <button
             id="theme-toggle"
             onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-accent focus-ring"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/80 dark:border-border/50 bg-card/80 dark:bg-card/50 transition-all hover:bg-accent focus-ring"
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
             {theme === 'dark' ? (
               <Sun className="h-4 w-4 text-amber-400 transition-transform hover:rotate-45" />
             ) : (
-              <Moon className="h-4 w-4 text-indigo-500 transition-transform hover:-rotate-12" />
+              <Moon className="h-4 w-4 text-indigo-600 transition-transform hover:-rotate-12" />
             )}
           </button>
         </div>

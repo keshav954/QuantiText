@@ -66,7 +66,7 @@ export function RevenueTrendChart() {
               <stop offset="95%" stopColor="hsl(152, 69%, 41%)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 27.9%, 16.9%)" opacity={0.3} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.6} />
           <XAxis
             dataKey="date"
             tickFormatter={(d: string) => {
@@ -76,14 +76,14 @@ export function RevenueTrendChart() {
               }
               return `${date.getMonth() + 1}/${date.getDate()}`
             }}
-            tick={{ fontSize: 11, fill: 'hsl(217.9, 10.6%, 64.9%)' }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             yAxisId="revenue"
             tickFormatter={(v: number) => formatCompact(v)}
-            tick={{ fontSize: 11, fill: 'hsl(217.9, 10.6%, 64.9%)' }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             axisLine={false}
           />
@@ -91,21 +91,21 @@ export function RevenueTrendChart() {
             yAxisId="orders"
             orientation="right"
             tickFormatter={(v: number) => String(v)}
-            tick={{ fontSize: 11, fill: 'hsl(217.9, 10.6%, 64.9%)' }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             axisLine={false}
             hide
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'hsl(224, 50%, 8%)',
-              border: '1px solid hsl(215, 27.9%, 16.9%)',
+              backgroundColor: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
               borderRadius: '0.75rem',
               fontSize: '12px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
             }}
-            itemStyle={{ color: 'hsl(210, 20%, 98%)' }}
-            labelStyle={{ color: 'hsl(217.9, 10.6%, 64.9%)', marginBottom: '4px' }}
+            itemStyle={{ color: 'hsl(var(--foreground))' }}
+            labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '4px' }}
             formatter={(value: number, name: string) =>
               name === 'revenue' ? formatCurrency(value) : value
             }

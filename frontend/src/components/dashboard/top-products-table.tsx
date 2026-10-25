@@ -89,9 +89,9 @@ function ProductRow({
         <span
           className={cn(
             'text-xs font-bold',
-            rank === 1 && 'text-amber-400',
-            rank === 2 && 'text-slate-400',
-            rank === 3 && 'text-amber-600',
+            rank === 1 && 'text-amber-500 dark:text-amber-400',
+            rank === 2 && 'text-slate-600 dark:text-slate-400',
+            rank === 3 && 'text-amber-700 dark:text-amber-500',
             rank > 3 && 'text-muted-foreground',
           )}
         >
