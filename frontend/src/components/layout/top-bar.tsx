@@ -14,7 +14,7 @@ import {
   Menu,
   Zap,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 
 const presets = [
@@ -31,6 +31,29 @@ export function TopBar() {
   const { range, setRange, presetLabel, setPresetLabel } = useDateRange()
   const [showPresets, setShowPresets] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const datePickerRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on click outside or Escape key
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowPresets(false)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setShowPresets(false)
+      }
+    }
+    if (showPresets) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showPresets])
 
   const handlePreset = (label: string, days: number) => {
     const to = new Date()
@@ -43,7 +66,7 @@ export function TopBar() {
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b border-border/50 bg-card/30 backdrop-blur-md px-4 md:px-6">
+      <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/50 bg-card/30 backdrop-blur-md px-4 md:px-6">
         {/* Mobile menu button */}
         <button
           className="md:hidden p-2 rounded-lg hover:bg-accent focus-ring"
@@ -67,7 +90,7 @@ export function TopBar() {
         {/* Right controls */}
         <div className="flex items-center gap-2">
           {/* Date range picker */}
-          <div className="relative">
+          <div className="relative" ref={datePickerRef}>
             <button
               id="date-range-picker"
               onClick={() => setShowPresets(!showPresets)}
@@ -87,23 +110,25 @@ export function TopBar() {
             </button>
 
             {showPresets && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowPresets(false)} />
-                <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border/50 bg-popover p-2 shadow-xl shadow-black/10 animate-fade-in">
-                  {presets.map(({ label, days }) => (
-                    <button
-                      key={label}
-                      onClick={() => handlePreset(label, days)}
-                      className={cn(
-                        'flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent focus-ring',
-                        presetLabel === label ? 'bg-primary/10 text-primary font-medium' : 'text-foreground',
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <div
+                className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border/60 bg-popover/95 p-2 shadow-2xl shadow-black/20 backdrop-blur-md animate-fade-in ring-1 ring-border"
+                role="listbox"
+              >
+                {presets.map(({ label, days }) => (
+                  <button
+                    key={label}
+                    onClick={() => handlePreset(label, days)}
+                    className={cn(
+                      'flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent focus-ring',
+                      presetLabel === label ? 'bg-primary/10 text-primary font-medium' : 'text-foreground',
+                    )}
+                    role="option"
+                    aria-selected={presetLabel === label}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 

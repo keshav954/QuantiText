@@ -3,7 +3,8 @@
  * Phase 7.
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   BarChart,
   Bar,
@@ -303,6 +304,18 @@ export function CopilotPage() {
     messages, input, setInput, inputRef,
     isPending, send: handleSend, handleKeyDown, newChat: handleNewChat,
   } = useCopilotChat()
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialSentRef = useRef(false)
+
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q && !initialSentRef.current) {
+      initialSentRef.current = true
+      handleSend(q)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, handleSend, setSearchParams])
 
   const messagesEndRef = useAutoScroll<HTMLDivElement>([messages])
 
